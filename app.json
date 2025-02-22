@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "my-expo-app",
+    "slug": "my-expo-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/adaptive-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#171C32",
+      "androidSplashMode": "fade",
+      "ios": {
+        "loadingIndicator": true
+      }
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "userInterfaceStyle": "dark",
+      "backgroundColor": "#171C32"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#171C32"
+      },
+      "softwareKeyboardLayoutMode": "pan",
+      "navigationBarColor": "#171C32",
+      "statusBarColor": "#171C32",
+      "navigationBarHidden": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "newArchEnabled": true,
+    "plugins": [
+      "expo-system-ui"
+    ]
+  }
+} 
