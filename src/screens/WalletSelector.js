@@ -45,9 +45,7 @@ export default function WalletSelector({ navigation }) {
 
   const handleSelectWallet = async (wallet) => {
     try {
-      console.log('Selecting wallet:', wallet);
       await updateSelectedWallet(wallet);
-      console.log('Wallet updated, navigating back');
       navigation.goBack();
     } catch (error) {
       console.error('Failed to select wallet:', error);
@@ -61,7 +59,6 @@ export default function WalletSelector({ navigation }) {
 
   const renderWalletItem = ({ item }) => {
     const isSelected = selectedWallet?.id === item.id;
-    console.log('Rendering wallet item:', item.id, 'Selected:', isSelected);
     
     return (
       <TouchableOpacity
@@ -82,9 +79,12 @@ export default function WalletSelector({ navigation }) {
               {formatAddress(item.address)}
             </Text>
           </View>
-          {isSelected && (
-            <Ionicons name="checkmark-circle" size={24} color="#1FC595" />
-          )}
+          <TouchableOpacity 
+            style={styles.settingsButton}
+            onPress={() => navigation.navigate('EditWallet', { wallet: item })}
+          >
+            <Ionicons name="settings-outline" size={20} color="#8E8E8E" />
+          </TouchableOpacity>
         </View>
       </TouchableOpacity>
     );
@@ -146,8 +146,6 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   walletItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: '#272C52',
     borderRadius: 12,
     padding: 16,
@@ -160,6 +158,7 @@ const styles = StyleSheet.create({
   walletItemContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    position: 'relative',
   },
   walletAvatar: {
     width: 40,
@@ -214,5 +213,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     marginLeft: 8,
+  },
+  settingsButton: {
+    marginLeft: 12,
+    padding: 4,
   },
 }); 

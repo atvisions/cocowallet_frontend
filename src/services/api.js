@@ -34,13 +34,32 @@ instance.interceptors.response.use(
   }
 );
 
+// 添加链路径配置
+const CHAIN_PATHS = {
+  sol: 'solana',
+  solana: 'solana',
+  eth: 'evm',
+  evm: 'evm'
+};
+
+// 获取链路径的辅助函数
+const getChainPath = (chain) => {
+  const chainKey = chain?.toLowerCase();
+  const path = CHAIN_PATHS[chainKey];
+  if (!path) {
+    console.error('Unsupported chain:', chain);
+  }
+  return path;
+};
+
 export const api = {
-  async setPaymentPassword(deviceId, password, confirmPassword) {
+  async setPaymentPassword(deviceId, password, confirmPassword, useBiometric = false) {
     try {
       const response = await instance.post('/wallets/set_password/', {
         device_id: deviceId,
         payment_password: password,
-        payment_password_confirm: confirmPassword
+        payment_password_confirm: confirmPassword,
+        use_biometric: useBiometric
       });
       // 设置密码成功后，更新本地状态
       await DeviceManager.setPaymentPasswordStatus(true);
@@ -167,7 +186,7 @@ export const api = {
   async getTokens(deviceId, chain, walletId) {
     try {
       // 根据链类型选择不同的路径
-      const chainPath = chain === 'sol' ? 'solana' : 'evm';
+      const chainPath = getChainPath(chain);
       const response = await instance.get(`/${chainPath}/wallets/${walletId}/tokens/?device_id=${deviceId}`);
       return response.data;
     } catch (error) {
@@ -177,7 +196,7 @@ export const api = {
 
   async getTokenTransfers(deviceId, chain, walletId, page = 1, pageSize = 20) {
     try {
-      const chainPath = chain === 'sol' ? 'solana' : 'evm';
+      const chainPath = getChainPath(chain);
       const response = await instance.get(
         `/${chainPath}/wallets/${walletId}/token-transfers/`,
         {
@@ -197,7 +216,7 @@ export const api = {
 
   async getNFTCollections(deviceId, chain, walletId) {
     try {
-      const chainPath = chain === 'sol' ? 'solana' : 'evm';
+      const chainPath = getChainPath(chain);
       const response = await instance.get(
         `/${chainPath}/nfts/collections/${walletId}/`,
         {
@@ -215,7 +234,7 @@ export const api = {
 
   async getNFTsByCollection(deviceId, chain, walletId, collectionAddress) {
     try {
-      const chainPath = chain === 'sol' ? 'solana' : 'evm';
+      const chainPath = getChainPath(chain);
       let url;
       
       if (chain === 'sol') {
@@ -256,30 +275,119 @@ export const api = {
   },
 
   toggleTokenVisibility: async (walletId, tokenAddress, deviceId, chain) => {
-    const chainPath = chain === 'sol' ? 'solana' : 'evm';
-    const response = await instance.post(
-      `/${chainPath}/wallets/${walletId}/tokens/toggle-visibility/?device_id=${deviceId}`,
-      {
-        token_address: tokenAddress,
+    try {
+      const chainPath = getChainPath(chain);
+      if (!chainPath) {
+        console.error('Invalid chain path for:', chain);
+        return null;
       }
-    );
-    return response.data;
+
+      console.log('Toggle visibility request:', {
+        chainPath,
+        walletId,
+        tokenAddress,
+        deviceId
+      });
+
+      const response = await instance.post(
+        `/${chainPath}/wallets/${walletId}/tokens/toggle-visibility/`,
+        {
+          token_address: tokenAddress
+        },
+        {
+          params: {
+            device_id: deviceId
+          }
+        }
+      );
+
+      return response.data;
+    } catch (error) {
+      console.error('Toggle visibility API error:', error);
+      throw error;
+    }
   },
 
-  async getTokensManagement(walletId, deviceId, chain) {
-    const chainPath = chain === 'sol' ? 'solana' : 'evm';
+  getTokensManagement: async (walletId, deviceId, chain) => {
+    const chainPath = getChainPath(chain);
+    if (!chainPath) return null;
+    
     const response = await instance.get(`/${chainPath}/wallets/${walletId}/tokens/manage/?device_id=${deviceId}`);
     return response.data;
   },
 
-  toggleTokenVisibility: async (walletId, tokenAddress, deviceId, chain) => {
-    const chainPath = chain === 'sol' ? 'solana' : 'evm';
-    const response = await instance.post(
-      `/${chainPath}/wallets/${walletId}/tokens/toggle-visibility/?device_id=${deviceId}`,
-      {
-        token_address: tokenAddress, // 确保请求体包含 token_address
+  getPrivateKey: async (walletId, deviceId, paymentPassword) => {
+    try {
+      console.log('Getting private key for wallet:', {
+        walletId,
+        deviceId
+      });
+
+      const response = await instance.post(
+        `/wallets/${walletId}/show_private_key/`,
+        {
+          device_id: deviceId,
+          payment_password: paymentPassword
+        }
+      );
+
+      if (response.data?.status === 'success') {
+        return response.data.data;
+      } else {
+        throw new Error(response.data?.message || 'Failed to get private key');
       }
-    );
-    return response.data;
+    } catch (error) {
+      console.error('Get private key error:', error);
+      throw error;
+    }
+  },
+
+  getPrivateKeyWithBiometric: async (walletId, deviceId) => {
+    try {
+      const response = await instance.post(
+        `/wallets/${walletId}/show_private_key/biometric/`,
+        {
+          device_id: deviceId,
+        }
+      );
+
+      if (response.data?.status === 'success') {
+        return response.data.data;
+      } else {
+        throw new Error(response.data?.message || 'Failed to get private key');
+      }
+    } catch (error) {
+      console.error('Get private key with biometric error:', error);
+      throw error;
+    }
+  },
+
+  enableBiometric: async (deviceId, paymentPassword) => {
+    try {
+      const response = await instance.post('/wallets/biometric/enable/', {
+        device_id: deviceId,
+        payment_password: paymentPassword
+      });
+
+      if (response.data?.code === 200) {
+        return response.data.data;
+      } else {
+        throw new Error(response.data?.message || 'Failed to enable biometric');
+      }
+    } catch (error) {
+      console.error('Enable biometric error:', error);
+      throw error;
+    }
+  },
+
+  disableBiometric: async (deviceId) => {
+    try {
+      const response = await instance.post('/wallets/biometric/disable/', {
+        device_id: deviceId
+      });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
   },
 }; 

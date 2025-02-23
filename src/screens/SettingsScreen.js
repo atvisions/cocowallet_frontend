@@ -34,15 +34,17 @@ export default function SettingsScreen({ navigation }) {
 
   const checkPaymentPasswordStatus = async () => {
     try {
-      const hasPassword = await DeviceManager.hasPaymentPassword();
-      setHasPaymentPassword(hasPassword);
+      const deviceId = await DeviceManager.getDeviceId();
+      const response = await api.checkPaymentPasswordStatus(deviceId);
+      console.log('Payment password status:', response);  // 添加日志
+      setHasPaymentPassword(response || false);
     } catch (error) {
       console.error('Check payment password error:', error);
       setHasPaymentPassword(false);
     }
   };
 
-  const handleSetPaymentPassword = async () => {
+  const handleSetPaymentPassword = () => {
     if (hasPaymentPassword) {
       navigation.navigate('ChangePaymentPassword');
     } else {

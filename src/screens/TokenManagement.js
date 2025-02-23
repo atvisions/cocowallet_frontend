@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, Platform, Animated, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../services/api';
@@ -6,6 +6,7 @@ import { DeviceManager } from '../utils/device';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Header from '../components/Header';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useWallet } from '../contexts/WalletContext';
 
 const ToggleSwitch = ({ value, onToggle }) => {
   const translateX = new Animated.Value(value ? 20 : 0);
@@ -39,53 +40,102 @@ const ToggleSwitch = ({ value, onToggle }) => {
 };
 
 const TokenManagement = ({ route, navigation }) => {
-  const { selectedWallet, onTokenVisibilityChanged } = route.params;
+  const { selectedWallet } = useWallet();
+  const wallet = selectedWallet;
   const [tokens, setTokens] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingTokenId, setLoadingTokenId] = useState(null);
+  const { onTokenVisibilityChanged } = route.params || {};  // 从路由参数中获取回调
 
-  const loadTokens = async () => {
+  // 添加缓存时间常量
+  const CACHE_DURATION = 5 * 60 * 1000; // 5分钟
+
+  const loadTokens = async (forceRefresh = false) => {
     try {
       setLoading(true);
       const deviceId = await DeviceManager.getDeviceId();
-      const chain = selectedWallet.chain.toLowerCase();
-      const response = await api.getTokensManagement(selectedWallet.id, deviceId, chain);
-      setTokens(response.data.tokens);
+      
+      // 检查缓存
+      const cacheKey = `token_visibility_${selectedWallet.id}`;
+      const cachedData = await AsyncStorage.getItem(cacheKey);
+
+      // 如果有缓存且未过期且不是强制刷新
+      if (!forceRefresh && cachedData) {
+        const { tokens: cachedTokens, timestamp } = JSON.parse(cachedData);
+        if (Date.now() - timestamp < CACHE_DURATION) {
+          console.log('Using cached token data');
+          setTokens(cachedTokens);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // 如果没有缓存或缓存过期，请求新数据
+      const response = await api.getTokensManagement(
+        selectedWallet.id, 
+        deviceId, 
+        selectedWallet.chain
+      );
+
+      if (response?.status === 'success') {
+        const newTokens = response.data.tokens || response.data;
+        if (Array.isArray(newTokens)) {
+          setTokens(newTokens);
+          // 更新缓存
+          await AsyncStorage.setItem(cacheKey, JSON.stringify({
+            tokens: newTokens,
+            timestamp: Date.now()
+          }));
+        }
+      }
     } catch (error) {
-      console.error('Failed to load tokens for management:', error);
+      console.error('Failed to load tokens:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  // 每次页面获得焦点时重新加载数据
-  useFocusEffect(
-    React.useCallback(() => {
-      loadTokens();
-    }, [selectedWallet])
-  );
+  // 初始加载
+  useEffect(() => {
+    loadTokens();
+  }, [selectedWallet?.id]);
 
   const toggleVisibility = async (tokenAddress) => {
     try {
       setLoadingTokenId(tokenAddress);
       const deviceId = await DeviceManager.getDeviceId();
-      const chain = selectedWallet.chain.toLowerCase();
-      const response = await api.toggleTokenVisibility(selectedWallet.id, tokenAddress, deviceId, chain);
-      
-      if (response.data && response.status === 'success') {
-        setTokens(tokens.map(token => 
-          token.address === tokenAddress 
-            ? { ...token, is_visible: response.data.is_visible }
-            : token
-        ));
 
-        // 确保回调存在并且是函数
+      const response = await api.toggleTokenVisibility(
+        selectedWallet.id,
+        tokenAddress,
+        deviceId,
+        selectedWallet.chain
+      );
+
+      if (response?.status === 'success') {
+        // 更新本地状态
+        const updatedTokens = tokens.map(token => 
+          token.address === tokenAddress 
+            ? { ...token, is_visible: !token.is_visible }
+            : token
+        );
+        setTokens(updatedTokens);
+
+        // 更新缓存
+        const cacheKey = `token_visibility_${selectedWallet.id}`;
+        await AsyncStorage.setItem(cacheKey, JSON.stringify({
+          tokens: updatedTokens,
+          timestamp: Date.now()
+        }));
+
+        // 确保回调被调用
         if (typeof onTokenVisibilityChanged === 'function') {
+          console.log('Calling visibility changed callback');
           onTokenVisibilityChanged();
         }
       }
     } catch (error) {
-      console.error('Failed to toggle token visibility:', error);
+      console.error('Toggle visibility error:', error);
     } finally {
       setLoadingTokenId(null);
     }

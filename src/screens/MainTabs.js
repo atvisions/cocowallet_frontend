@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createStackNavigator } from '@react-navigation/stack';
 import { View, Text, StyleSheet, Platform, SafeAreaView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated from 'react-native/Libraries/Animated/Animated';
@@ -8,8 +9,14 @@ import NFTScreen from './tabs/NFTScreen';
 import SwapScreen from './tabs/SwapScreen';
 import HistoryScreen from './tabs/HistoryScreen';
 import DiscoverScreen from './tabs/DiscoverScreen';
+import WalletSelector from './WalletSelector';
+import EditWallet from './EditWallet';
+import ShowPrivateKey from './ShowPrivateKey';
+import TokenManagement from './TokenManagement';
+import RenameWallet from './RenameWallet';
 
 const Tab = createBottomTabNavigator();
+const Stack = createStackNavigator();
 
 function CustomTabBar({ state, descriptors, navigation }) {
   const animatedValues = React.useRef(
@@ -97,16 +104,7 @@ function CustomTabBar({ state, descriptors, navigation }) {
   );
 }
 
-export default function MainTabs({ navigation, route }) {
-  const [selectedWallet, setSelectedWallet] = useState(null);
-
-  useEffect(() => {
-    if (route.params?.selectedWallet) {
-      console.log('MainTabs received wallet:', route.params.selectedWallet);
-      setSelectedWallet(route.params.selectedWallet);
-    }
-  }, [route.params?.selectedWallet]);
-
+function TabScreens() {
   return (
     <Tab.Navigator
       tabBar={props => <CustomTabBar {...props} />}
@@ -114,36 +112,29 @@ export default function MainTabs({ navigation, route }) {
         headerShown: false,
       }}
     >
-      <Tab.Screen 
-        name="Wallet" 
-        component={WalletScreen}
-        initialParams={{ selectedWallet }}
-      />
-      <Tab.Screen 
-        name="NFT" 
-        component={NFTScreen}
-        initialParams={{ selectedWallet }}
-        listeners={{
-          tabPress: () => {
-            console.log('NFT tab pressed, current wallet:', selectedWallet);
-          }
-        }}
-      />
-      <Tab.Screen 
-        name="Swap" 
-        component={SwapScreen}
-        initialParams={{ selectedWallet }}
-      />
-      <Tab.Screen 
-        name="History" 
-        component={HistoryScreen}
-        initialParams={{ selectedWallet }}
-      />
-      <Tab.Screen 
-        name="Discover" 
-        component={DiscoverScreen}
-      />
+      <Tab.Screen name="Wallet" component={WalletScreen} />
+      <Tab.Screen name="NFT" component={NFTScreen} />
+      <Tab.Screen name="Swap" component={SwapScreen} />
+      <Tab.Screen name="History" component={HistoryScreen} />
+      <Tab.Screen name="Discover" component={DiscoverScreen} />
     </Tab.Navigator>
+  );
+}
+
+export default function MainTabs() {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false
+      }}
+    >
+      <Stack.Screen name="Tabs" component={TabScreens} />
+      <Stack.Screen name="WalletSelector" component={WalletSelector} />
+      <Stack.Screen name="EditWallet" component={EditWallet} />
+      <Stack.Screen name="ShowPrivateKey" component={ShowPrivateKey} />
+      <Stack.Screen name="TokenManagement" component={TokenManagement} />
+      <Stack.Screen name="RenameWallet" component={RenameWallet} />
+    </Stack.Navigator>
   );
 }
 

@@ -6,15 +6,21 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
-  TextInput
+  TextInput,
+  SafeAreaView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../services/api';
 import { DeviceManager } from '../utils/device';
+import * as LocalAuthentication from 'expo-local-authentication';
+import { useWallet } from '../contexts/WalletContext';
 
 export default function SetPaymentPassword({ navigation }) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const { isBiometricSupported, toggleBiometric } = useWallet();
+  const [useBiometric, setUseBiometric] = useState(false);
+  const [step, setStep] = useState(1);
 
   const handleSetPassword = async () => {
     if (password.length !== 6 || confirmPassword.length !== 6) {
@@ -29,14 +35,53 @@ export default function SetPaymentPassword({ navigation }) {
 
     try {
       const deviceId = await DeviceManager.getDeviceId();
-      await api.setPaymentPassword(deviceId, password, confirmPassword);
-      Alert.alert('Success', 'Payment password set successfully', [
-        { text: 'OK', onPress: () => navigation.goBack() }
-      ]);
+      
+      if (useBiometric) {
+        const biometricAuth = await LocalAuthentication.authenticateAsync({
+          promptMessage: 'Verify your identity',
+          cancelLabel: 'Cancel',
+          disableDeviceFallback: true,
+        });
+
+        if (!biometricAuth.success) {
+          Alert.alert('Error', 'Biometric verification failed');
+          return;
+        }
+      }
+
+      await api.setPaymentPassword(deviceId, password, confirmPassword, useBiometric);
+      
+      if (useBiometric) {
+        await toggleBiometric(true);
+      }
+
+      await DeviceManager.setPaymentPasswordStatus(true);
+      
+      setStep(4);
+      
+      setTimeout(() => {
+        navigation.navigate('Settings');
+      }, 2000);
     } catch (error) {
       Alert.alert('Error', error.message || 'Failed to set payment password');
     }
   };
+
+  if (step === 4) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.successContent}>
+          <View style={styles.successIconContainer}>
+            <Ionicons name="checkmark-circle" size={80} color="#1FC595" />
+          </View>
+          <Text style={styles.successTitle}>Success</Text>
+          <Text style={styles.successDescription}>
+            Payment password set successfully
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -93,6 +138,24 @@ export default function SetPaymentPassword({ navigation }) {
         >
           <Text style={styles.buttonText}>Confirm</Text>
         </TouchableOpacity>
+
+        {isBiometricSupported && (
+          <TouchableOpacity 
+            style={styles.biometricOption}
+            onPress={() => setUseBiometric(!useBiometric)}
+          >
+            <View style={styles.checkboxContainer}>
+              <Ionicons
+                name={useBiometric ? "checkbox" : "square-outline"}
+                size={24}
+                color={useBiometric ? "#1FC595" : "#8E8E8E"}
+              />
+              <Text style={styles.biometricText}>
+                Enable fingerprint for future use
+              </Text>
+            </View>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -161,5 +224,45 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  biometricOption: {
+    marginTop: 24,
+    marginBottom: 16,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  biometricText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    marginLeft: 12,
+  },
+  successContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  successIconContainer: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(31, 197, 149, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  successTitle: {
+    fontSize: 28,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  successDescription: {
+    fontSize: 16,
+    color: '#8E8E8E',
+    textAlign: 'center',
   },
 }); 

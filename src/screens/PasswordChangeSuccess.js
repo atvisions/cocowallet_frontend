@@ -2,7 +2,9 @@ import React, { useEffect } from 'react';
 import { StyleSheet, View, Text, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-export default function PasswordChangeSuccess({ navigation }) {
+export default function PasswordChangeSuccess({ navigation, route }) {
+  const isChange = route.params?.isChange;  // 是否是修改密码
+
   useEffect(() => {
     const timer = setTimeout(() => {
       navigation.navigate('Settings');
@@ -18,7 +20,9 @@ export default function PasswordChangeSuccess({ navigation }) {
           <Ionicons name="checkmark-circle" size={80} color="#1FC595" />
         </View>
         <Text style={styles.title}>Success</Text>
-        <Text style={styles.description}>Password changed successfully</Text>
+        <Text style={styles.description}>
+          {isChange ? 'Password changed successfully' : 'Payment password set successfully'}
+        </Text>
       </View>
     </SafeAreaView>
   );

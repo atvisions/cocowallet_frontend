@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
+import { api } from '../services/api';
 
 const DEVICE_ID_KEY = '@coco_wallet_device_id';
 const PASSWORD_SET_KEY = '@coco_wallet_password_set';
@@ -70,10 +71,11 @@ export const DeviceManager = {
 
   async hasPaymentPassword() {
     try {
-      const status = await AsyncStorage.getItem(PAYMENT_PASSWORD_SET_KEY);
-      return status === 'true';
+      const deviceId = await this.getDeviceId();
+      const response = await api.checkPaymentPasswordStatus(deviceId);
+      return response?.has_payment_password || false;
     } catch (error) {
-      console.error('Error checking payment password status:', error);
+      console.error('Check payment password status error:', error);
       return false;
     }
   },

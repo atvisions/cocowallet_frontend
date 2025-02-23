@@ -21,18 +21,18 @@ export default function SetPassword({ navigation, route }) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isConfirming, setIsConfirming] = useState(false);
+  const [step, setStep] = useState(1);
   const [error, setError] = useState('');
 
   const isPaymentPassword = route.params?.type === 'payment';
 
   const handleNumberPress = (number) => {
-    const currentPassword = isConfirming ? confirmPassword : password;
+    const currentPassword = step === 1 ? password : confirmPassword;
     
     if (currentPassword.length < 6) {
       const newValue = currentPassword + number;
       
-      if (isConfirming) {
+      if (step === 2) {
         setConfirmPassword(newValue);
         if (newValue.length === 6) {
           setTimeout(() => {
@@ -43,7 +43,7 @@ export default function SetPassword({ navigation, route }) {
         setPassword(newValue);
         if (newValue.length === 6) {
           setTimeout(() => {
-            handleSetPassword(newValue);
+            handleNext(newValue);
           }, 200);
         }
       }
@@ -51,33 +51,37 @@ export default function SetPassword({ navigation, route }) {
   };
 
   const handleDelete = () => {
-    if (isConfirming) {
+    if (step === 2) {
       setConfirmPassword(prev => prev.slice(0, -1));
     } else {
       setPassword(prev => prev.slice(0, -1));
     }
   };
 
-  const handleSetPassword = async (currentValue) => {
+  const handleNext = async (currentValue) => {
     setError('');
     
-    const inputValue = currentValue || (isConfirming ? confirmPassword : password);
-    console.log('Processing password:', { inputValue, isConfirming });
-
+    const inputValue = currentValue || password;
+    
     if (inputValue.length !== 6) {
       setError('Please enter 6 digits password');
       return;
     }
 
-    if (!isConfirming) {
-      setTimeout(() => {
-        setIsConfirming(true);
-        setConfirmPassword('');
-      }, 100);
+    setStep(2);
+    setConfirmPassword('');
+  };
+
+  const handleSetPassword = async (currentValue) => {
+    const currentConfirmPassword = currentValue || confirmPassword;
+    
+    if (currentConfirmPassword.length !== 6) {
+      setError('Please enter confirmation password');
+      setConfirmPassword('');
       return;
     }
 
-    if (password !== inputValue) {
+    if (password !== currentConfirmPassword) {
       setError('Passwords do not match');
       setConfirmPassword('');
       return;
@@ -88,9 +92,9 @@ export default function SetPassword({ navigation, route }) {
       const deviceId = await DeviceManager.getDeviceId();
 
       if (isPaymentPassword) {
-        await api.setPaymentPassword(deviceId, password, inputValue);
+        await api.setPaymentPassword(deviceId, password, currentConfirmPassword);
         await DeviceManager.setPaymentPasswordStatus(true);
-        navigation.goBack();
+        navigation.navigate('PasswordChangeSuccess', { isChange: false });
       } else {
         await DeviceManager.setPassword(password);
         navigation.navigate('SelectChain', { deviceId });
@@ -104,7 +108,7 @@ export default function SetPassword({ navigation, route }) {
 
   const renderPinDots = () => {
     const dots = [];
-    const currentPassword = isConfirming ? confirmPassword : password;
+    const currentPassword = step === 1 ? password : confirmPassword;
 
     for (let i = 0; i < PIN_LENGTH; i++) {
       dots.push(
@@ -130,9 +134,9 @@ export default function SetPassword({ navigation, route }) {
       <View style={styles.mainContent}>
         <View style={styles.headerSection}>
           <View style={styles.stepIndicator}>
-            <View style={[styles.stepDot, !isConfirming && styles.activeStepDot]} />
-            <View style={[styles.stepLine, isConfirming && styles.activeStepLine]} />
-            <View style={[styles.stepDot, isConfirming && styles.activeStepDot]} />
+            <View style={[styles.stepDot, step === 1 && styles.activeStepDot]} />
+            <View style={[styles.stepLine, step === 2 && styles.activeStepLine]} />
+            <View style={[styles.stepDot, step === 2 && styles.activeStepDot]} />
           </View>
           
           <Text style={styles.stepDescription}>

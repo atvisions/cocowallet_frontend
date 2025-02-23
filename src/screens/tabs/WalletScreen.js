@@ -15,7 +15,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../services/api';
 import { DeviceManager } from '../../utils/device';
-import WalletSelector from '../../components/WalletSelector';
 import { SafeAreaView as SafeAreaViewContext } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useWallet } from '../../contexts/WalletContext';
@@ -295,13 +294,19 @@ export default function WalletScreen({ navigation }) {
     </View>
   );
 
-  const navigateToTokenManagement = () => {
-    navigation.navigate('TokenManagement', { 
-      selectedWallet,
-      onTokenVisibilityChanged: () => {
-        loadTokens(false);
-      }
+  const handleTokenVisibilityChanged = () => {
+    console.log('Token visibility changed, refreshing wallet data...');
+    loadTokens(false);  // 确保这个方法会刷新代币列表
+  };
+
+  const handleTokenManagementPress = () => {
+    navigation.navigate('TokenManagement', {
+      onTokenVisibilityChanged: handleTokenVisibilityChanged  // 传递回调函数
     });
+  };
+
+  const handleWalletSelect = () => {
+    navigation.navigate('WalletSelector');
   };
 
   const renderAssetsSection = () => (
@@ -310,7 +315,7 @@ export default function WalletScreen({ navigation }) {
         <Text style={styles.sectionTitle}>Assets</Text>
         <TouchableOpacity 
           style={styles.tokenManagementButton}
-          onPress={navigateToTokenManagement}
+          onPress={handleTokenManagementPress}
         >
           <Ionicons name="options-outline" size={20} color="#8E8E8E" />
         </TouchableOpacity>
@@ -386,15 +391,6 @@ export default function WalletScreen({ navigation }) {
           {renderActionButtons()}
           {renderAssetsSection()}
         </ScrollView>
-
-        <WalletSelector
-          visible={showWalletSelector}
-          onClose={() => setShowWalletSelector(false)}
-          wallets={wallets}
-          selectedWallet={selectedWallet}
-          onSelectWallet={updateSelectedWallet}
-          onRefreshWallets={loadWallets}
-        />
       </SafeAreaViewContext>
     </View>
   );
@@ -468,14 +464,6 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     marginBottom: 24,
     backgroundColor: '#1B2C41',
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
   },
   balanceContent: {
     padding: 24,
@@ -484,6 +472,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#8E8E8E',
     marginBottom: 8,
+    height: 24,
+    lineHeight: 24,
+  },
+  balanceAmount: {
+    fontSize: 40,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 16,
+    height: 48,
+    lineHeight: 48,
   },
   balanceAmountSkeleton: {
     height: 48,
@@ -493,15 +491,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 16,
   },
-  balanceAmount: {
-    fontSize: 40,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 16,
-  },
   balanceFooter: {
     flexDirection: 'row',
     alignItems: 'center',
+    height: 32,
   },
   changeIndicator: {
     flexDirection: 'row',
