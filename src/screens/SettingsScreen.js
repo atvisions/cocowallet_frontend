@@ -13,7 +13,7 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { api } from '../services/api';
 import { DeviceManager } from '../utils/device';
 import Constants from 'expo-constants';
-import Header from '../components/Header';
+import Header from '../components/common/Header';
 
 export default function SettingsScreen({ navigation }) {
   const [hasPaymentPassword, setHasPaymentPassword] = useState(false);
@@ -52,11 +52,23 @@ export default function SettingsScreen({ navigation }) {
     }
   };
 
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      // 如果无法返回，则重置到主页面
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Main' }],
+      });
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <Header 
         title="Settings"
-        onBack={() => navigation.goBack()}
+        onBack={handleBack}
       />
       <ScrollView style={styles.content}>
         <View style={styles.section}>

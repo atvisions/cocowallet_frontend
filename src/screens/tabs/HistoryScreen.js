@@ -13,9 +13,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../services/api';
 import { DeviceManager } from '../../utils/device';
-import EmptyTransactions from '../../components/EmptyTransactions';
+import EmptyTransactions from '../../components/wallet/EmptyTransactions';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Header from '../../components/Header';
+import Header from '../../components/common/Header';
 
 export default function HistoryScreen({ navigation, route }) {
   const [transactions, setTransactions] = useState([]);

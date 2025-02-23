@@ -4,16 +4,16 @@ import {
   View,
   Text,
   TouchableOpacity,
-  Alert,
   SafeAreaView,
   Keyboard,
   Platform,
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { api } from '../services/api';
-import { DeviceManager } from '../utils/device';
-import Header from '../components/Header';
+import { api } from '../../services/api';
+import { DeviceManager } from '../../utils/device';
+import Header from '../../components/common/Header';
+import PasswordDots from '../../components/common/PasswordDots';
 
 const { width } = Dimensions.get('window');
 const PIN_LENGTH = 6;
@@ -40,20 +40,17 @@ export default function ChangePaymentPassword({ navigation }) {
 
   useEffect(() => {
     if (pendingValidation && pendingValidation.length === 6) {
-      console.log('Validating password:', pendingValidation);
       handleNext(pendingValidation);
       setPendingValidation(null);
     }
   }, [pendingValidation]);
 
   const handleNumberPress = (number) => {
-    console.log('Pressing number:', number);
     const currentPassword = step === 1 ? oldPassword :
                           step === 2 ? newPassword : confirmPassword;
     
     if (currentPassword.length < 6) {
       const newValue = currentPassword + number;
-      console.log('New value length:', newValue.length);
       
       if (step === 1) {
         setOldPassword(newValue);
@@ -86,7 +83,6 @@ export default function ChangePaymentPassword({ navigation }) {
 
   const handleNext = async (passwordValue) => {
     setError('');
-    console.log('Current step:', step);
     
     if (step === 1) {
       const currentOldPassword = passwordValue || oldPassword;
@@ -98,16 +94,16 @@ export default function ChangePaymentPassword({ navigation }) {
       setIsVerifying(true);
       try {
         const deviceId = await DeviceManager.getDeviceId();
-        const response = await api.verifyPaymentPassword(deviceId, currentOldPassword);
+        const response = await api.verifyPaymentPassword(deviceId, currentOldPassword).catch(() => null);
         
-        if (response && response.status === 'success') {
+        if (response?.status === 'success') {
           setStep(2);
         } else {
           setError('Current password is incorrect');
           setOldPassword('');
         }
-      } catch (error) {
-        setError(error.message || 'Current password is incorrect');
+      } catch {
+        setError('Current password is incorrect');
         setOldPassword('');
       } finally {
         setIsVerifying(false);
@@ -140,27 +136,40 @@ export default function ChangePaymentPassword({ navigation }) {
       setIsVerifying(true);
       try {
         const deviceId = await DeviceManager.getDeviceId();
-        console.log('Changing password with:', { deviceId, oldPassword, newPassword, currentConfirmPassword });
+        const response = await api.changePaymentPassword(
+          deviceId, 
+          oldPassword, 
+          newPassword, 
+          currentConfirmPassword
+        ).catch(() => null);
         
-        const response = await api.changePaymentPassword(deviceId, oldPassword, newPassword, currentConfirmPassword);
-        console.log('Change password response:', response);
-        
-        if (response.status === 'success') {
-          console.log('Password change successful, showing success state');
+        if (response?.status === 'success') {
           setStep(4);
           setTimeout(() => {
-            navigation.navigate('Settings');
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Settings' }],
+            });
           }, 2000);
         } else {
-          console.log('Password change failed:', response);
-          setError(response.message || 'Failed to change password');
+          setError('Failed to change password');
         }
-      } catch (error) {
-        console.error('Password change error:', error);
-        setError(error.message || 'Failed to change password');
+      } catch {
+        setError('Failed to change password');
       } finally {
         setIsVerifying(false);
       }
+    }
+  };
+
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Settings' }],
+      });
     }
   };
 
@@ -177,30 +186,11 @@ export default function ChangePaymentPassword({ navigation }) {
     }
   };
 
-  const renderPinDots = () => {
-    const dots = [];
-    const currentPassword = step === 1 ? oldPassword :
-                          step === 2 ? newPassword : confirmPassword;
-
-    for (let i = 0; i < PIN_LENGTH; i++) {
-      dots.push(
-        <View
-          key={i}
-          style={[
-            styles.dot,
-            i < currentPassword.length && styles.dotFilled
-          ]}
-        />
-      );
-    }
-    return dots;
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <Header 
         title="Change Password"
-        onBack={() => navigation.goBack()}
+        onBack={handleBack}
       />
       
       <View style={styles.mainContent}>
@@ -230,9 +220,14 @@ export default function ChangePaymentPassword({ navigation }) {
             </View>
 
             <View style={styles.pinSection}>
-              <View style={styles.pinContainer}>
-                {renderPinDots()}
-              </View>
+              <PasswordDots
+                length={6}
+                filledCount={
+                  step === 1 ? oldPassword.length : 
+                  step === 2 ? newPassword.length : 
+                  confirmPassword.length
+                }
+              />
               {error ? (
                 <View style={styles.errorContainer}>
                   <Ionicons name="alert-circle" size={16} color="#FF4B55" />

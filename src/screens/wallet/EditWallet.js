@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -6,59 +6,21 @@ import {
   TouchableOpacity,
   Image,
   Alert,
-  TextInput,
-  Modal,
-  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { api } from '../services/api';
-import { DeviceManager } from '../utils/device';
-import Header from '../components/Header';
-import { useWallet } from '../contexts/WalletContext';
+import { api } from '../../services/api';
+import { DeviceManager } from '../../utils/device';
+import Header from '../../components/common/Header';
+import { useWallet } from '../../contexts/WalletContext';
 import * as Clipboard from 'expo-clipboard';
 import { CommonActions } from '@react-navigation/native';
-
-// 添加 Toast 组件
-const Toast = ({ message, visible, onHide }) => {
-  const opacity = useRef(new Animated.Value(0)).current;
-
-  React.useEffect(() => {
-    if (visible) {
-      Animated.sequence([
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.delay(1500),
-        Animated.timing(opacity, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start(() => onHide());
-    }
-  }, [visible]);
-
-  if (!visible) return null;
-
-  return (
-    <Animated.View style={[styles.toast, { opacity }]}>
-      <Text style={styles.toastText}>{message}</Text>
-    </Animated.View>
-  );
-};
 
 export default function EditWallet({ route, navigation }) {
   const { wallet } = route.params;
   const { selectedWallet, updateSelectedWallet } = useWallet();
-  const [showRenameModal, setShowRenameModal] = useState(false);
-  const [showPrivateKeyModal, setShowPrivateKeyModal] = useState(false);
   const [newName, setNewName] = useState(selectedWallet?.name || wallet.name);
-  const [password, setPassword] = useState('');
   const [isCopied, setIsCopied] = useState(false);
 
-  // 添加useEffect来监听页面焦点
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       if (selectedWallet) {
@@ -80,55 +42,9 @@ export default function EditWallet({ route, navigation }) {
       await api.renameWallet(wallet.id, deviceId, newName);
       const updatedWallet = { ...wallet, name: newName };
       updateSelectedWallet(updatedWallet);
-      setShowRenameModal(false);
       navigation.goBack();
     } catch (error) {
       Alert.alert('Error', 'Failed to rename wallet');
-    }
-  };
-
-  const handleDelete = async () => {
-    try {
-      navigation.dispatch(
-        CommonActions.navigate({
-          name: 'SetPaymentPassword',
-          params: {
-            onSuccess: async (paymentPassword) => {
-              try {
-                const deviceId = await DeviceManager.getDeviceId();
-                await api.deleteWallet(wallet.id, deviceId, paymentPassword);
-                Alert.alert('Success', 'Wallet deleted successfully', [
-                  {
-                    text: 'OK',
-                    onPress: () => navigation.navigate('Main')
-                  }
-                ]);
-              } catch (error) {
-                console.error('Delete wallet error:', error);
-                Alert.alert('Error', error.message || 'Failed to delete wallet');
-              }
-            }
-          }
-        })
-      );
-    } catch (error) {
-      console.error('Navigation error:', error);
-      Alert.alert('Error', 'Failed to process wallet deletion');
-    }
-  };
-
-  const handleShowPrivateKey = async () => {
-    try {
-      const deviceId = await DeviceManager.getDeviceId();
-      const response = await api.getPrivateKey(wallet.id, deviceId, password);
-      Alert.alert('Private Key', response.private_key, [
-        { text: 'Copy', onPress: () => Clipboard.setString(response.private_key) },
-        { text: 'OK' },
-      ]);
-      setShowPrivateKeyModal(false);
-      setPassword('');
-    } catch (error) {
-      Alert.alert('Error', 'Failed to get private key');
     }
   };
 
@@ -188,7 +104,6 @@ export default function EditWallet({ route, navigation }) {
         <TouchableOpacity 
           style={styles.actionItem}
           onPress={() => {
-            console.log('Attempting to navigate to ShowPrivateKey');
             navigation.dispatch(
               CommonActions.navigate({
                 name: 'ShowPrivateKey',
@@ -204,7 +119,48 @@ export default function EditWallet({ route, navigation }) {
 
         <TouchableOpacity 
           style={[styles.actionItem, styles.deleteButton]}
-          onPress={handleDelete}
+          onPress={() => {
+            navigation.navigate('PaymentPasswordScreen', {
+              title: 'Delete Wallet',
+              onSuccess: async (password) => {
+                try {
+                  const deviceId = await DeviceManager.getDeviceId();
+                  await api.deleteWallet(wallet.id, deviceId, password);
+                  
+                  if (selectedWallet?.id === wallet.id) {
+                    updateSelectedWallet(null);
+                  }
+
+                  Alert.alert('Success', 'Wallet deleted successfully', [
+                    {
+                      text: 'OK',
+                      onPress: () => {
+                        navigation.dispatch(
+                          CommonActions.reset({
+                            index: 0,
+                            routes: [
+                              {
+                                name: 'Tabs',
+                                state: {
+                                  routes: [
+                                    {
+                                      name: 'Wallet'
+                                    }
+                                  ]
+                                }
+                              }
+                            ],
+                          })
+                        );
+                      }
+                    }
+                  ]);
+                } catch (error) {
+                  Alert.alert('Error', error.message || 'Failed to delete wallet');
+                }
+              }
+            });
+          }}
         >
           <Ionicons name="trash-outline" size={24} color="#FF4B55" />
           <Text style={[styles.actionText, styles.deleteText]}>Delete Wallet</Text>
@@ -309,29 +265,5 @@ const styles = StyleSheet.create({
   },
   deleteText: {
     color: '#FF4B55',
-  },
-  toast: {
-    position: 'absolute',
-    bottom: 100,
-    left: 20,
-    right: 20,
-    backgroundColor: 'rgba(31, 197, 149, 0.9)',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  toastText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
 });

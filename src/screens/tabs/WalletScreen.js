@@ -20,6 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useWallet } from '../../contexts/WalletContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import TokenManagement from '../TokenManagement';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function WalletScreen({ navigation }) {
   const { selectedWallet, updateSelectedWallet } = useWallet();
@@ -31,6 +32,7 @@ export default function WalletScreen({ navigation }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [change24h, setChange24h] = useState(0);
   const [error, setError] = useState(null);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (selectedWallet) {
@@ -338,28 +340,30 @@ export default function WalletScreen({ navigation }) {
         edges={['right', 'bottom', 'left']}
       >
         <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.walletSelector}
-            onPress={() => navigation.navigate('WalletSelector')}
-          >
-            {selectedWallet?.avatar && (
-              <Image 
-                source={{ uri: selectedWallet.avatar }}
-                style={styles.walletLogo}
-              />
-            )}
-            <View style={styles.walletNameContainer}>
-              <Text style={styles.walletName} numberOfLines={1} ellipsizeMode="tail">
-                {selectedWallet?.name || '选择钱包'}
-              </Text>
-              <Ionicons 
-                name="chevron-down" 
-                size={20} 
-                color="#FFFFFF" 
-                style={styles.dropdownIcon}
-              />
-            </View>
-          </TouchableOpacity>
+          <View style={styles.walletSelectorContainer}>
+            <TouchableOpacity 
+              style={styles.walletSelector}
+              onPress={() => navigation.navigate('WalletSelector')}
+            >
+              {selectedWallet?.avatar && (
+                <Image 
+                  source={{ uri: selectedWallet.avatar }}
+                  style={styles.walletLogo}
+                />
+              )}
+              <View style={styles.walletNameContainer}>
+                <Text style={styles.walletName} numberOfLines={1} ellipsizeMode="tail">
+                  {selectedWallet?.name || '选择钱包'}
+                </Text>
+                <Ionicons  
+                  name="chevron-down" 
+                  size={20} 
+                  color="#FFFFFF" 
+                  style={styles.dropdownIcon}
+                />
+              </View>
+            </TouchableOpacity>
+          </View>
           <View style={styles.headerButtons}>
             <TouchableOpacity style={styles.headerButton}>
               <Ionicons name="scan-outline" size={24} color="#FFFFFF" />
@@ -400,38 +404,37 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#171C32',
-    paddingTop: 0,
   },
   safeArea: {
     flex: 1,
-    paddingTop: 0,
+    backgroundColor: '#171C32',
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    height: 60,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
-    marginBottom: 10,
-    marginTop: 10,
+    height: 44,
+    marginTop: Platform.OS === 'ios' ? 30 : 10,
+  },
+  walletSelectorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
   walletSelector: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
-    maxWidth: '70%',
   },
   walletLogo: {
     width: 30,
     height: 30,
-    borderRadius: 18,
+    borderRadius: 15,
     marginRight: 8,
   },
   walletNameContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
   },
   walletName: {
     color: '#FFFFFF',
@@ -440,7 +443,6 @@ const styles = StyleSheet.create({
   },
   dropdownIcon: {
     marginLeft: 4,
-    padding: 4,
   },
   headerButtons: {
     flexDirection: 'row',

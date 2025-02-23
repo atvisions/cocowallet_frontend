@@ -10,10 +10,10 @@ import {
   SafeAreaView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { api } from '../services/api';
-import { DeviceManager } from '../utils/device';
+import { api } from '../../services/api';
+import { DeviceManager } from '../../utils/device';
 import * as LocalAuthentication from 'expo-local-authentication';
-import { useWallet } from '../contexts/WalletContext';
+import { useWallet } from '../../contexts/WalletContext';
 
 export default function SetPaymentPassword({ navigation }) {
   const [password, setPassword] = useState('');

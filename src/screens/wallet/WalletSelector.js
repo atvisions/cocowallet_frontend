@@ -12,10 +12,10 @@ import {
   SafeAreaView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { api } from '../services/api';
-import { DeviceManager } from '../utils/device';
-import { useWallet } from '../contexts/WalletContext';
-import Header from '../components/Header';
+import { api } from '../../services/api';
+import { DeviceManager } from '../../utils/device';
+import { useWallet } from '../../contexts/WalletContext';
+import Header from '../../components/common/Header';
 
 export default function WalletSelector({ navigation }) {
   const { selectedWallet, updateSelectedWallet } = useWallet();

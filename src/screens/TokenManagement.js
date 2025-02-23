@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { api } from '../services/api';
 import { DeviceManager } from '../utils/device';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import Header from '../components/Header';
+import Header from '../components/common/Header';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useWallet } from '../contexts/WalletContext';
 

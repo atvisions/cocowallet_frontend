@@ -11,7 +11,7 @@ import {
   SafeAreaView
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import Header from '../../components/Header';
+import Header from '../../components/common/Header';
 import { BASE_URL } from '../../config/constants';
 import { api } from '../../services/api';
 import { DeviceManager } from '../../utils/device';

@@ -7,10 +7,10 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { api } from '../services/api';
-import { DeviceManager } from '../utils/device';
-import Header from '../components/Header';
-import { useWallet } from '../contexts/WalletContext';
+import { api } from '../../services/api';
+import { DeviceManager } from '../../utils/device';
+import Header from '../../components/common/Header';
+import { useWallet } from '../../contexts/WalletContext';
 
 export default function RenameWallet({ route, navigation }) {
   console.log('RenameWallet - Route params:', route.params);

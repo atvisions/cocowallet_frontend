@@ -11,8 +11,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../services/api';
 import { DeviceManager } from '../utils/device';
-import Header from '../components/Header';
-import Loading from '../components/Loading';
+import Header from '../components/common/Header';
+import Loading from '../components/common/Loading';
+import PasswordDots from '../components/common/PasswordDots';
 
 const { width } = Dimensions.get('window');
 const PIN_LENGTH = 6;
@@ -94,34 +95,22 @@ export default function SetPassword({ navigation, route }) {
       if (isPaymentPassword) {
         await api.setPaymentPassword(deviceId, password, currentConfirmPassword);
         await DeviceManager.setPaymentPasswordStatus(true);
-        navigation.navigate('PasswordChangeSuccess', { isChange: false });
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Settings' }],
+        });
       } else {
         await DeviceManager.setPassword(password);
-        navigation.navigate('SelectChain', { deviceId });
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'SelectChain', params: { deviceId } }],
+        });
       }
     } catch (error) {
       setError(error.message || 'Failed to set password');
     } finally {
       setLoading(false);
     }
-  };
-
-  const renderPinDots = () => {
-    const dots = [];
-    const currentPassword = step === 1 ? password : confirmPassword;
-
-    for (let i = 0; i < PIN_LENGTH; i++) {
-      dots.push(
-        <View
-          key={i}
-          style={[
-            styles.dot,
-            i < currentPassword.length && styles.dotFilled
-          ]}
-        />
-      );
-    }
-    return dots;
   };
 
   return (
@@ -147,9 +136,10 @@ export default function SetPassword({ navigation, route }) {
         </View>
 
         <View style={styles.pinSection}>
-          <View style={styles.pinContainer}>
-            {renderPinDots()}
-          </View>
+          <PasswordDots
+            length={6}
+            filledCount={step === 1 ? password.length : confirmPassword.length}
+          />
           {error ? (
             <View style={styles.errorContainer}>
               <Ionicons name="alert-circle" size={16} color="#FF4B55" />
@@ -234,23 +224,6 @@ const styles = StyleSheet.create({
   pinSection: {
     marginTop: 48,
     alignItems: 'center',
-  },
-  pinContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 16,
-  },
-  dot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  dotFilled: {
-    backgroundColor: '#1FC595',
-    borderColor: '#1FC595',
   },
   errorContainer: {
     flexDirection: 'row',

@@ -4,16 +4,18 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { View, Text, StyleSheet, Platform, SafeAreaView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated from 'react-native/Libraries/Animated/Animated';
-import WalletScreen from './tabs/WalletScreen';
-import NFTScreen from './tabs/NFTScreen';
-import SwapScreen from './tabs/SwapScreen';
-import HistoryScreen from './tabs/HistoryScreen';
-import DiscoverScreen from './tabs/DiscoverScreen';
-import WalletSelector from './WalletSelector';
-import EditWallet from './EditWallet';
-import ShowPrivateKey from './ShowPrivateKey';
-import TokenManagement from './TokenManagement';
-import RenameWallet from './RenameWallet';
+
+import WalletScreen from '../screens/tabs/WalletScreen';
+import NFTScreen from '../screens/tabs/NFTScreen';
+import SwapScreen from '../screens/tabs/SwapScreen';
+import HistoryScreen from '../screens/tabs/HistoryScreen';
+import DiscoverScreen from '../screens/tabs/DiscoverScreen';
+import WalletSelector from '../screens/wallet/WalletSelector';
+import EditWallet from '../screens/wallet/EditWallet';
+import ShowPrivateKey from '../screens/wallet/ShowPrivateKey';
+import TokenManagement from '../screens/TokenManagement';
+import RenameWallet from '../screens/wallet/RenameWallet';
+import PaymentPasswordScreen from '../screens/wallet/PaymentPasswordScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -134,6 +136,7 @@ export default function MainTabs() {
       <Stack.Screen name="ShowPrivateKey" component={ShowPrivateKey} />
       <Stack.Screen name="TokenManagement" component={TokenManagement} />
       <Stack.Screen name="RenameWallet" component={RenameWallet} />
+      <Stack.Screen name="PaymentPasswordScreen" component={PaymentPasswordScreen} />
     </Stack.Navigator>
   );
 }

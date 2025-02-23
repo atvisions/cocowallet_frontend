@@ -19,17 +19,23 @@ instance.interceptors.response.use(
   error => {
     // 更详细的错误处理
     if (error.response) {
-      // 服务器返回错误
-      console.error('Server Error:', error.response.data);
-      return Promise.reject(error.response.data);
+      // 服务器返回错误，但不直接显示错误信息
+      return Promise.reject({
+        status: 'error',
+        message: 'An error occurred'  // 使用通用的英文错误信息
+      });
     } else if (error.request) {
       // 请求发出但没有收到响应
-      console.error('Network Error:', error.request);
-      return Promise.reject({ message: 'Network error, please check your connection' });
+      return Promise.reject({
+        status: 'error',
+        message: 'Network error, please check your connection'
+      });
     } else {
       // 请求配置出错
-      console.error('Request Error:', error.message);
-      return Promise.reject({ message: error.message });
+      return Promise.reject({
+        status: 'error',
+        message: 'Request failed'
+      });
     }
   }
 );
@@ -50,6 +56,17 @@ const getChainPath = (chain) => {
     console.error('Unsupported chain:', chain);
   }
   return path;
+};
+
+// 统一的错误处理函数
+const handleApiError = (error, defaultMessage) => {
+  if (error.status === 'error') {
+    return error;  // 如果已经是格式化的错误，直接返回
+  }
+  return {
+    status: 'error',
+    message: defaultMessage
+  };
 };
 
 export const api = {
@@ -99,7 +116,7 @@ export const api = {
       });
       return response.data;
     } catch (error) {
-      throw error;
+      return handleApiError(error, 'Failed to verify mnemonic');
     }
   },
 
@@ -108,7 +125,7 @@ export const api = {
       const response = await instance.get(`/wallets/?device_id=${deviceId}`);
       return response.data;
     } catch (error) {
-      throw error;
+      return handleApiError(error, 'Failed to get wallets');
     }
   },
 
@@ -132,11 +149,7 @@ export const api = {
       });
       return response.data;
     } catch (error) {
-      // 将服务器返回的错误信息传递出去
-      if (error.response?.data) {
-        throw error.response.data;
-      }
-      throw error;
+      return handleApiError(error, 'Failed to delete wallet');
     }
   },
 
@@ -150,10 +163,11 @@ export const api = {
       });
       return response.data;
     } catch (error) {
-      if (error.response?.data) {
-        throw error.response.data;
-      }
-      throw error;
+      // 不再抛出错误，而是返回错误状态
+      return {
+        status: 'error',
+        message: error.response?.data?.message || 'Failed to change password'
+      };
     }
   },
 
@@ -173,13 +187,13 @@ export const api = {
         device_id: deviceId,
         payment_password: password
       });
-      // 直接返回 response.data，让调用方处理具体的验证结果
       return response.data;
     } catch (error) {
-      if (error.response?.data) {
-        throw error.response.data;
-      }
-      throw error;
+      // 不再抛出错误，而是返回错误状态
+      return {
+        status: 'error',
+        message: error.response?.data?.message || 'Current password is incorrect'
+      };
     }
   },
 
@@ -316,29 +330,18 @@ export const api = {
     return response.data;
   },
 
-  getPrivateKey: async (walletId, deviceId, paymentPassword) => {
+  async getPrivateKey(walletId, deviceId, password) {
     try {
-      console.log('Getting private key for wallet:', {
-        walletId,
-        deviceId
+      const response = await instance.post(`/wallets/${walletId}/private_key/`, {
+        device_id: deviceId,
+        payment_password: password
       });
-
-      const response = await instance.post(
-        `/wallets/${walletId}/show_private_key/`,
-        {
-          device_id: deviceId,
-          payment_password: paymentPassword
-        }
-      );
-
-      if (response.data?.status === 'success') {
-        return response.data.data;
-      } else {
-        throw new Error(response.data?.message || 'Failed to get private key');
-      }
+      return response.data;
     } catch (error) {
-      console.error('Get private key error:', error);
-      throw error;
+      return {
+        status: 'error',
+        message: error.response?.data?.message || 'Failed to get private key'
+      };
     }
   },
 
