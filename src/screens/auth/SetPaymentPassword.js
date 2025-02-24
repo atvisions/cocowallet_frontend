@@ -7,13 +7,21 @@ import {
   Alert,
   Platform,
   TextInput,
-  SafeAreaView
+  SafeAreaView,
+  Dimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../services/api';
 import { DeviceManager } from '../../utils/device';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useWallet } from '../../contexts/WalletContext';
+import { SafeAreaView as SafeAreaViewContext } from 'react-native-safe-area-context';
+import Header from '../../components/common/Header';
+import Loading from '../../components/common/Loading';
+import PasswordDots from '../../components/common/PasswordDots';
+
+const { width } = Dimensions.get('window');
+const PIN_LENGTH = 6;
 
 export default function SetPaymentPassword({ navigation }) {
   const [password, setPassword] = useState('');
@@ -21,6 +29,8 @@ export default function SetPaymentPassword({ navigation }) {
   const { isBiometricSupported, toggleBiometric } = useWallet();
   const [useBiometric, setUseBiometric] = useState(false);
   const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSetPassword = async () => {
     if (password.length !== 6 || confirmPassword.length !== 6) {
@@ -34,6 +44,7 @@ export default function SetPaymentPassword({ navigation }) {
     }
 
     try {
+      setLoading(true);
       const deviceId = await DeviceManager.getDeviceId();
       
       if (useBiometric) {
@@ -63,7 +74,9 @@ export default function SetPaymentPassword({ navigation }) {
         navigation.navigate('Settings');
       }, 2000);
     } catch (error) {
-      Alert.alert('Error', error.message || 'Failed to set payment password');
+      setError(error.message || 'Failed to set payment password');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -84,21 +97,19 @@ export default function SetPaymentPassword({ navigation }) {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-        <Text style={styles.title}>Set Payment Password</Text>
-      </View>
-
+    <SafeAreaViewContext style={styles.container} edges={['right', 'left']}>
       <View style={styles.content}>
-        <Text style={styles.description}>
-          Set a 6-digit payment password to protect your assets
-        </Text>
+        <Header 
+          title="Set Payment Password"
+          onBack={() => navigation.goBack()}
+          showBackButton={true}
+        />
+
+        <View style={styles.descriptionContainer}>
+          <Text style={styles.description}>
+            Set a 6-digit payment password to protect your assets
+          </Text>
+        </View>
 
         <View style={styles.inputContainer}>
           <Text style={styles.label}>Enter Password</Text>
@@ -157,7 +168,8 @@ export default function SetPaymentPassword({ navigation }) {
           </TouchableOpacity>
         )}
       </View>
-    </View>
+      {loading && <Loading />}
+    </SafeAreaViewContext>
   );
 }
 
@@ -166,34 +178,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#171C32',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 50 : 20,
-    paddingHorizontal: 16,
-    height: Platform.OS === 'ios' ? 90 : 60,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginLeft: 8,
-  },
   content: {
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 24,
   },
+  descriptionContainer: {
+    marginBottom: 32,
+  },
   description: {
     fontSize: 14,
     color: '#8E8E8E',
-    marginBottom: 32,
   },
   inputContainer: {
     marginBottom: 24,

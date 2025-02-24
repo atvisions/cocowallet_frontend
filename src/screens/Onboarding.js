@@ -1,22 +1,20 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { 
-  StyleSheet, 
-  View, 
-  Text, 
-  Image, 
-  Dimensions, 
-  TouchableOpacity, 
-  FlatList,
+import React, { useState, useRef } from 'react';
+import {
+  StyleSheet,
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
   SafeAreaView,
-  Platform
+  Dimensions,
+  FlatList,
 } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { MaterialIcons, Ionicons } from '@expo/vector-icons';
-import * as SystemUI from 'expo-system-ui';
+import { Ionicons } from '@expo/vector-icons';
 import { DeviceManager } from '../utils/device';
-import { api } from '../services/api';
+import { LinearGradient } from 'expo-linear-gradient';
+import { typography } from '../styles/typography';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 const slides = [
   {
@@ -40,8 +38,6 @@ const slides = [
   {
     id: '4',
     type: 'create',
-    title: 'Create Wallet',
-    subtitle: 'Create a new wallet or import an existing one'
   }
 ];
 
@@ -49,26 +45,29 @@ export default function Onboarding({ navigation }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef(null);
 
-  useEffect(() => {
-    // 设置系统UI颜色
-    SystemUI.setBackgroundColorAsync("#171C32");
-  }, []);
-
   const handleCreateWallet = async () => {
     try {
       const deviceId = await DeviceManager.getDeviceId();
-      const hasPassword = await DeviceManager.hasSetPassword();
-      
-      if (hasPassword) {
-        // 如果已设置密码，直接进入选择链页面
-        navigation.navigate('SelectChain', { deviceId });
-      } else {
-        // 如果未设置密码，进入设置密码页面
-        navigation.navigate('SetPassword');
-      }
+      navigation.navigate('SelectChain', {
+        purpose: 'create',
+        deviceId,
+        fromOnboarding: true
+      });
     } catch (error) {
-      console.error('Failed to check password status:', error);
-      navigation.navigate('SetPassword');
+      console.error('Failed to get device ID:', error);
+    }
+  };
+
+  const handleImportWallet = async () => {
+    try {
+      const deviceId = await DeviceManager.getDeviceId();
+      navigation.navigate('SelectChain', {
+        purpose: 'import',
+        deviceId,
+        fromOnboarding: true
+      });
+    } catch (error) {
+      console.error('Failed to get device ID:', error);
     }
   };
 
@@ -76,34 +75,54 @@ export default function Onboarding({ navigation }) {
     if (item.type === 'create') {
       return (
         <View style={styles.slide}>
-          <View style={styles.optionsContainer}>
+          <View style={styles.header}>
+            <View style={styles.logoContainer}>
+              <Image 
+                source={require('../../assets/icon.png')} 
+                style={styles.logo}
+                resizeMode="cover"
+              />
+            </View>
+            <Text style={styles.title}>Welcome to CocoWallet</Text>
+            <Text style={styles.subtitle}>
+              Your secure gateway to the world of digital assets
+            </Text>
+          </View>
+
+          <View style={styles.buttonContainer}>
             <TouchableOpacity 
-              style={styles.option}
+              style={styles.button}
               onPress={handleCreateWallet}
             >
-              <View style={styles.optionIcon}>
-                <MaterialIcons name="add" size={24} color="#FFFFFF" />
-              </View>
-              <View style={styles.optionText}>
-                <Text style={styles.optionTitle}>Create New Wallet</Text>
-                <Text style={styles.optionDescription}>
-                  Create a new wallet and generate seed phrase
-                </Text>
+              <View style={styles.buttonContent}>
+                <View style={styles.iconContainer}>
+                  <Ionicons name="add-circle-outline" size={24} color="#1FC595" />
+                </View>
+                <View style={styles.buttonTextContainer}>
+                  <Text style={styles.buttonTitle}>Create New Wallet</Text>
+                  <Text style={styles.buttonDescription}>
+                    Start fresh with a new wallet
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={24} color="#8E8E8E" />
               </View>
             </TouchableOpacity>
 
             <TouchableOpacity 
-              style={styles.option}
-              onPress={() => navigation.navigate('ImportWallet')}
+              style={styles.button}
+              onPress={handleImportWallet}
             >
-              <View style={styles.optionIcon}>
-                <Ionicons name="download-outline" size={24} color="#FFFFFF" />
-              </View>
-              <View style={styles.optionText}>
-                <Text style={styles.optionTitle}>Import Wallet</Text>
-                <Text style={styles.optionDescription}>
-                  Import your wallet using seed phrase
-                </Text>
+              <View style={styles.buttonContent}>
+                <View style={styles.iconContainer}>
+                  <Ionicons name="download-outline" size={24} color="#1FC595" />
+                </View>
+                <View style={styles.buttonTextContainer}>
+                  <Text style={styles.buttonTitle}>Import Existing Wallet</Text>
+                  <Text style={styles.buttonDescription}>
+                    Import using seed phrase
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={24} color="#8E8E8E" />
               </View>
             </TouchableOpacity>
           </View>
@@ -115,31 +134,24 @@ export default function Onboarding({ navigation }) {
       <View style={styles.slide}>
         <Image 
           source={item.image} 
-          style={styles.image}
-          resizeMode="contain"
+          style={styles.slideImage}
+          resizeMode="cover"
         />
-        <View style={styles.textContainer}>
-          <Text style={styles.title}>{item.title}</Text>
-          <Text style={styles.subtitle}>{item.subtitle}</Text>
-        </View>
+        <LinearGradient
+          colors={['rgba(23, 28, 50, 0)', '#171C32']}
+          style={styles.slideGradient}
+        >
+          <View style={styles.slideContent}>
+            <Text style={styles.slideTitle}>{item.title}</Text>
+            <Text style={styles.slideSubtitle}>{item.subtitle}</Text>
+          </View>
+        </LinearGradient>
       </View>
     );
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar style="light" backgroundColor="#171C32" />
-      
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Image 
-            source={require('../../assets/icon.png')}
-            style={styles.headerIcon}
-          />
-          <Text style={styles.headerTitle}>COCO Wallet</Text>
-        </View>
-      </View>
-
+    <SafeAreaView style={styles.container}>
       <FlatList
         ref={flatListRef}
         data={slides}
@@ -154,20 +166,18 @@ export default function Onboarding({ navigation }) {
         keyExtractor={(item) => item.id}
       />
 
-      <View style={styles.footer}>
-        <View style={styles.paginationDots}>
-          {slides.map((_, index) => (
-            <View
-              key={index}
-              style={[
-                styles.dot,
-                { backgroundColor: index === currentIndex ? '#1FC595' : '#272C52' }
-              ]}
-            />
-          ))}
-        </View>
+      <View style={styles.pagination}>
+        {slides.map((_, index) => (
+          <View
+            key={index}
+            style={[
+              styles.paginationDot,
+              currentIndex === index && styles.paginationDotActive
+            ]}
+          />
+        ))}
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -176,107 +186,120 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#171C32',
   },
-  header: {
-    width: '100%',
-    paddingTop: 50,
-    paddingBottom: 20,
-    position: 'absolute',
-    zIndex: 1,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
   slide: {
     width,
-    height: height,
+    flex: 1,
+  },
+  slideImage: {
+    width,
+    height: '100%',
+    position: 'absolute',
+  },
+  slideGradient: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    padding: 20,
+  },
+  slideContent: {
     alignItems: 'center',
-    justifyContent: 'center',
+    marginBottom: 100,
+  },
+  slideTitle: {
+    ...typography.h1,
+    color: '#FFFFFF',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  slideSubtitle: {
+    ...typography.subtitle,
+    color: '#FFFFFF',
+    opacity: 0.8,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  header: {
+    alignItems: 'center',
+    paddingTop: 60,
     paddingHorizontal: 20,
   },
-  image: {
-    width: width * 0.8,
-    height: height * 0.5,
+  logoContainer: {
+    width: width * 0.4,
+    height: width * 0.4,
+    borderRadius: width * 0.2,
+    overflow: 'hidden',
+    backgroundColor: '#272C52',
+    marginBottom: 40,
   },
-  textContainer: {
-    alignItems: 'center',
-    marginTop: 20,
+  logo: {
+    width: '100%',
+    height: '100%',
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    ...typography.h2,
     color: '#FFFFFF',
-    marginBottom: 10,
+    marginBottom: 16,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
+    ...typography.subtitle,
     color: '#FFFFFF',
-    textAlign: 'center',
     opacity: 0.8,
+    textAlign: 'center',
+    lineHeight: 24,
+    paddingHorizontal: 40,
   },
-  footer: {
-    position: 'absolute',
-    bottom: 40,
-    left: 0,
-    right: 0,
+  buttonContainer: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  button: {
+    backgroundColor: '#272C52',
+    borderRadius: 16,
+    marginBottom: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  buttonContent: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  paginationDots: {
-    flexDirection: 'row',
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(31, 197, 149, 0.1)',
     justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
   },
-  dot: {
+  buttonTextContainer: {
+    flex: 1,
+  },
+  buttonTitle: {
+    ...typography.button,
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  buttonDescription: {
+    ...typography.body,
+    color: '#8E8E8E',
+  },
+  pagination: {
+    flexDirection: 'row',
+    position: 'absolute',
+    bottom: 40,
+    alignSelf: 'center',
+  },
+  paginationDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
+    backgroundColor: '#272C52',
     marginHorizontal: 4,
   },
-  optionsContainer: {
-    padding: 20,
-    width: '100%',
-  },
-  option: {
-    flexDirection: 'row',
-    backgroundColor: '#272C52',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
-    alignItems: 'center',
-  },
-  optionIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+  paginationDotActive: {
     backgroundColor: '#1FC595',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 15,
+    width: 24,
   },
-  optionText: {
-    flex: 1,
-  },
-  optionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 5,
-  },
-  optionDescription: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    opacity: 0.8,
-  }
 }); 

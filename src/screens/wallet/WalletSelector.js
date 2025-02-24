@@ -23,6 +23,14 @@ export default function WalletSelector({ navigation }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadWallets();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
+  useEffect(() => {
     loadWallets();
   }, []);
 
@@ -45,8 +53,8 @@ export default function WalletSelector({ navigation }) {
 
   const handleSelectWallet = async (wallet) => {
     try {
-      await updateSelectedWallet(wallet);
       navigation.goBack();
+      updateSelectedWallet(wallet);
     } catch (error) {
       console.error('Failed to select wallet:', error);
     }
@@ -56,6 +64,50 @@ export default function WalletSelector({ navigation }) {
     if (!address) return '';
     return `${address.slice(0, 6)}...${address.slice(-6)}`;
   };
+
+  const handleCreateWallet = async () => {
+    try {
+      const deviceId = await DeviceManager.getDeviceId();
+      navigation.navigate('SelectChain', {
+        purpose: 'create',
+        deviceId
+      });
+    } catch (error) {
+      console.error('Failed to get device ID:', error);
+    }
+  };
+
+  const handleImportWallet = async () => {
+    try {
+      const deviceId = await DeviceManager.getDeviceId();
+      navigation.navigate('SelectChain', {
+        purpose: 'import',
+        deviceId,
+        fromWalletList: true
+      });
+    } catch (error) {
+      console.error('Failed to get device ID:', error);
+    }
+  };
+
+  const renderFooter = () => (
+    <View style={styles.footer}>
+      <TouchableOpacity 
+        style={[styles.footerButton, styles.createButton]}
+        onPress={handleCreateWallet}
+      >
+        <Ionicons name="add-circle-outline" size={24} color="#FFFFFF" />
+        <Text style={styles.footerButtonText}>Create Wallet</Text>
+      </TouchableOpacity>
+      <TouchableOpacity 
+        style={[styles.footerButton, styles.importButton]}
+        onPress={handleImportWallet}
+      >
+        <Ionicons name="download-outline" size={24} color="#FFFFFF" />
+        <Text style={styles.footerButtonText}>Import Wallet</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
   const renderWalletItem = ({ item }) => {
     const isSelected = selectedWallet?.id === item.id;
@@ -91,17 +143,20 @@ export default function WalletSelector({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Header 
-        title="Select Wallet"
-        onBack={() => navigation.goBack()}
-      />
-      <View style={styles.content}>
+    <View style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
+        <Header 
+          title="Select Wallet"
+          onBack={() => navigation.goBack()}
+        />
         <FlatList
           data={wallets}
           renderItem={renderWalletItem}
           keyExtractor={item => item.id.toString()}
-          contentContainerStyle={styles.listContainer}
+          contentContainerStyle={[
+            styles.listContainer,
+            { paddingBottom: Platform.OS === 'ios' ? 180 : 160 }
+          ]}
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
@@ -110,27 +165,11 @@ export default function WalletSelector({ navigation }) {
               colors={['#1FC595']}
             />
           }
+          showsVerticalScrollIndicator={false}
         />
-
-        <View style={styles.footer}>
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => navigation.navigate('CreateWallet')}
-          >
-            <Ionicons name="add" size={24} color="#FFFFFF" />
-            <Text style={styles.actionButtonText}>Create Wallet</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.importButton]}
-            onPress={() => navigation.navigate('ImportWallet')}
-          >
-            <Ionicons name="download-outline" size={24} color="#FFFFFF" />
-            <Text style={styles.actionButtonText}>Import Wallet</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </SafeAreaView>
+        {renderFooter()}
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -139,11 +178,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#171C32',
   },
-  content: {
+  safeArea: {
     flex: 1,
   },
   listContainer: {
     padding: 16,
+    flexGrow: 1,
   },
   walletItem: {
     backgroundColor: '#272C52',
@@ -193,26 +233,37 @@ const styles = StyleSheet.create({
     color: '#8E8E8E',
   },
   footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     padding: 16,
     paddingBottom: Platform.OS === 'ios' ? 34 : 16,
+    backgroundColor: '#171C32',
+    borderTopWidth: 1,
+    borderTopColor: '#272C52',
+    zIndex: 999,
   },
-  actionButton: {
+  footerButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#1FC595',
-    borderRadius: 12,
     padding: 16,
+    borderRadius: 12,
     marginBottom: 12,
+    height: 56,
+  },
+  createButton: {
+    backgroundColor: '#1FC595',
   },
   importButton: {
-    backgroundColor: '#272C52',
+    backgroundColor: '#1FC595',
   },
-  actionButtonText: {
+  footerButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 8,
+    fontWeight: '600',
+    marginLeft: 12,
   },
   settingsButton: {
     marginLeft: 12,

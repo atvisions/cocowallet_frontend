@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,12 +11,21 @@ import {
   Animated
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Header from '../components/common/Header';
 
 export default function ShowMnemonic({ navigation, route }) {
-  const { mnemonic, chain, deviceId } = route.params;
+  const { mnemonic, chain, deviceId } = route.params || {};
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const modalOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!mnemonic || !chain || !deviceId) {
+      console.error('Missing required params:', { mnemonic, chain, deviceId });
+      navigation.goBack();
+      return;
+    }
+  }, [mnemonic, chain, deviceId]);
 
   const handleContinue = () => {
     if (!isConfirmed) {
@@ -37,7 +46,7 @@ export default function ShowMnemonic({ navigation, route }) {
       useNativeDriver: true,
     }).start(() => {
       setShowConfirmModal(false);
-      navigation.replace('VerifyMnemonic', {
+      navigation.navigate('VerifyMnemonic', {
         mnemonic,
         chain,
         deviceId
@@ -55,106 +64,102 @@ export default function ShowMnemonic({ navigation, route }) {
     });
   };
 
+  const renderMnemonicWords = () => {
+    if (!mnemonic) return null;
+    
+    return mnemonic.split(' ').map((word, index) => (
+      <View key={index} style={styles.wordContainer}>
+        <Text style={styles.wordIndex}>{index + 1}</Text>
+        <Text style={styles.word}>{word}</Text>
+      </View>
+    ));
+  };
+
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#171C32" />
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Backup Phrase</Text>
-          <View style={styles.backButton} />
+    <SafeAreaView style={styles.container}>
+      <Header 
+        title="Backup Phrase"
+        onBack={() => navigation.goBack()}
+      />
+      <View style={styles.content}>
+        <Text style={styles.title}>Backup Your Phrase</Text>
+        <Text style={styles.subtitle}>
+          Write down or copy these 12 words in the correct order and keep them in a safe place.
+        </Text>
+
+        <View style={styles.warningBox}>
+          <Ionicons name="warning" size={24} color="#FFB800" />
+          <Text style={styles.warningText}>
+            Never share your backup phrase. Anyone with these words can access your wallet.
+          </Text>
         </View>
 
-        <ScrollView style={styles.content}>
-          <Text style={styles.title}>Save Your Backup Phrase</Text>
-          <Text style={styles.subtitle}>
-            Write down or copy these 12 words in the correct order and keep them in a safe place.
+        <View style={styles.mnemonicContainer}>
+          {renderMnemonicWords()}
+        </View>
+
+        <TouchableOpacity 
+          style={[styles.button, isConfirmed && styles.buttonConfirmed]}
+          onPress={handleContinue}
+        >
+          <Text style={styles.buttonText}>
+            {isConfirmed ? 'Verify Backup Phrase' : 'I have saved these words'}
           </Text>
+        </TouchableOpacity>
+      </View>
 
-          <View style={styles.warningBox}>
-            <Ionicons name="warning" size={24} color="#FFB800" />
-            <Text style={styles.warningText}>
-              Never share your backup phrase. Anyone with these words can access your wallet.
-            </Text>
-          </View>
-
-          <View style={styles.mnemonicContainer}>
-            {mnemonic.split(' ').map((word, index) => (
-              <View key={index} style={styles.wordContainer}>
-                <Text style={styles.wordIndex}>{index + 1}</Text>
-                <Text style={styles.word}>{word}</Text>
-              </View>
-            ))}
-          </View>
-
+      {showConfirmModal && (
+        <Animated.View 
+          style={[
+            styles.modalOverlay,
+            { opacity: modalOpacity }
+          ]}
+        >
           <TouchableOpacity 
-            style={[styles.button, isConfirmed && styles.buttonConfirmed]}
-            onPress={handleContinue}
-          >
-            <Text style={styles.buttonText}>
-              {isConfirmed ? 'Verify Backup Phrase' : 'I have saved these words'}
-            </Text>
-          </TouchableOpacity>
-        </ScrollView>
-
-        {showConfirmModal && (
+            style={styles.modalBackground}
+            activeOpacity={1}
+            onPress={handleCancel}
+          />
           <Animated.View 
             style={[
-              styles.modalOverlay,
-              { opacity: modalOpacity }
+              styles.modalContent,
+              {
+                opacity: modalOpacity,
+                transform: [{
+                  translateY: modalOpacity.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [300, 0]
+                  })
+                }]
+              }
             ]}
           >
-            <TouchableOpacity 
-              style={styles.modalBackground}
-              activeOpacity={1}
-              onPress={handleCancel}
-            />
-            <Animated.View 
-              style={[
-                styles.modalContent,
-                {
-                  opacity: modalOpacity,
-                  transform: [{
-                    translateY: modalOpacity.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [300, 0]
-                    })
-                  }]
-                }
-              ]}
-            >
-              <View style={styles.modalHeader}>
-                <Ionicons name="shield-checkmark" size={40} color="#1FC595" />
-                <Text style={styles.modalTitle}>Important</Text>
-              </View>
-              <Text style={styles.modalText}>
-                Please make sure you have saved your backup phrase in a safe place. 
-                You will need to verify it in the next step.
-              </Text>
-              <View style={styles.modalButtons}>
-                <TouchableOpacity 
-                  style={styles.modalButtonCancel}
-                  onPress={handleCancel}
-                >
-                  <Text style={styles.modalButtonCancelText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.modalButtonConfirm}
-                  onPress={handleConfirm}
-                >
-                  <Text style={styles.modalButtonConfirmText}>I have saved it</Text>
-                </TouchableOpacity>
-              </View>
-            </Animated.View>
+            <View style={styles.modalHeader}>
+              <Ionicons name="shield-checkmark" size={40} color="#1FC595" />
+              <Text style={styles.modalTitle}>Important</Text>
+            </View>
+            <Text style={styles.modalText}>
+              Please make sure you have saved your backup phrase in a safe place. 
+              You will need to verify it in the next step.
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={styles.modalButtonCancel}
+                onPress={handleCancel}
+              >
+                <Text style={styles.modalButtonCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.modalButtonConfirm}
+                onPress={handleConfirm}
+              >
+                <Text style={styles.modalButtonConfirmText}>I have saved it</Text>
+              </TouchableOpacity>
+            </View>
           </Animated.View>
-        )}
-      </SafeAreaView>
-    </View>
+        </Animated.View>
+      )}
+    </SafeAreaView>
   );
 }
 
@@ -162,30 +167,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#171C32',
-  },
-  safeArea: {
-    flex: 1,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    height: 56,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
   },
   content: {
     flex: 1,

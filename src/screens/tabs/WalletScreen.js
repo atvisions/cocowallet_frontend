@@ -10,7 +10,8 @@ import {
   ScrollView,
   Image,
   FlatList,
-  RefreshControl
+  RefreshControl,
+  Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../services/api';
@@ -21,66 +22,91 @@ import { useWallet } from '../../contexts/WalletContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import TokenManagement from '../TokenManagement';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CommonActions } from '@react-navigation/native';
+import { useWalletNavigation } from '../../hooks/useWalletNavigation';
 
 export default function WalletScreen({ navigation }) {
-  const { selectedWallet, updateSelectedWallet } = useWallet();
-  const [wallets, setWallets] = useState([]);
+  const { selectedWallet, updateSelectedWallet, setWallets, setSelectedWallet } = useWallet();
+  const [wallets, setWalletsState] = useState([]);
   const [tokens, setTokens] = useState([]);
   const [totalBalance, setTotalBalance] = useState('0.00');
-  const [showWalletSelector, setShowWalletSelector] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [change24h, setChange24h] = useState(0);
   const [error, setError] = useState(null);
   const insets = useSafeAreaInsets();
 
+  useWalletNavigation(navigation);
+
+  useEffect(() => {
+    loadInitialData();
+  }, []);
+
   useEffect(() => {
     if (selectedWallet) {
-      console.log('Wallet changed, loading new data...');
-      setTokens([]);
-      setTotalBalance('0.00');
-      setChange24h(0);
-      setIsLoading(true);
-      loadTokens(true);
+      console.log('Selected wallet changed, loading data...');
+      loadCachedData().then(hasCachedData => {
+        if (!hasCachedData) {
+          loadTokens(true);
+        }
+      });
     }
-  }, [selectedWallet?.id]);
+  }, [selectedWallet]);
+
+  useEffect(() => {
+    if (!isLoading && wallets.length === 0) {
+      setTimeout(() => {
+        navigation.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: 'Onboarding' }]
+          })
+        );
+      }, 100);
+    }
+  }, [wallets.length, isLoading]);
 
   const loadInitialData = async () => {
     try {
-      await loadWallets();
-    } catch (error) {
-      console.error('Failed to load initial data:', error);
-    }
-  };
-
-  const loadWallets = async () => {
-    try {
+      setIsLoading(true);
       const deviceId = await DeviceManager.getDeviceId();
       const response = await api.getWallets(deviceId);
-      setWallets(response);
       
-      if (!selectedWallet && response.length > 0) {
-        console.log('Setting first wallet:', response[0]);
-        updateSelectedWallet(response[0]);
+      const walletsArray = Array.isArray(response) ? response : [];
+      setWalletsState(walletsArray);
+      
+      if (walletsArray.length > 0) {
+        if (!selectedWallet) {
+          console.log('Setting initial wallet:', walletsArray[0]);
+          await updateSelectedWallet(walletsArray[0]);
+        }
+      } else {
+        updateSelectedWallet(null);
       }
     } catch (error) {
-      console.error('Failed to load wallets:', error);
+      console.error('Failed to load initial data:', error);
+      setWalletsState([]);
+      updateSelectedWallet(null);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const loadCachedData = async () => {
     try {
-      if (!selectedWallet) return;
+      if (!selectedWallet) return false;
       
+      console.log('Trying to load cached data for wallet:', selectedWallet.id);
       const cachedTokens = await AsyncStorage.getItem(`tokens_${selectedWallet.id}`);
       if (cachedTokens) {
         const { data, timestamp } = JSON.parse(cachedTokens);
-        if (Date.now() - timestamp < 2 * 60 * 1000) {
+        if (Date.now() - timestamp < 5 * 60 * 1000) {
           console.log('Using cached token data');
-          setTokens(data.tokens);
-          setTotalBalance(data.total_value_usd);
-          const change = calculate24hChange(data.tokens);
-          setChange24h(change);
+          setTokens(data.tokens || []);
+          setTotalBalance(data.total_value_usd || '0.00');
+          if (data.price_change_24h) {
+            setChange24h(parseFloat(data.price_change_24h));
+          }
           return true;
         }
       }
@@ -91,71 +117,40 @@ export default function WalletScreen({ navigation }) {
     }
   };
 
-  const cacheData = async (data) => {
-    try {
-      await AsyncStorage.setItem(
-        `tokens_${selectedWallet?.id}`,
-        JSON.stringify({
-          data,
-          timestamp: Date.now()
-        })
-      );
-    } catch (error) {
-      console.error('Failed to cache data:', error);
-    }
-  };
-
-  const calculate24hChange = (tokenList) => {
-    if (!tokenList || tokenList.length === 0) return 0;
-
-    let totalCurrentValue = 0;
-    let totalValueWithoutChange = 0;
-
-    tokenList.forEach(token => {
-      const currentValue = parseFloat(token.value_usd) || 0;
-      totalCurrentValue += currentValue;
-
-      const changePercentage = parseFloat(token.price_change_24h) || 0;
-      const originalValue = currentValue / (1 + (changePercentage / 100));
-      totalValueWithoutChange += originalValue;
-    });
-
-    const changePercentage = ((totalCurrentValue - totalValueWithoutChange) / totalValueWithoutChange) * 100;
-    return changePercentage;
-  };
-
   const loadTokens = async (showLoading = true) => {
+    if (!selectedWallet?.id) return;
+    
     try {
       if (showLoading) {
         setIsLoading(true);
       }
       setError(null);
 
-      await loadCachedData();
-      
       const deviceId = await DeviceManager.getDeviceId();
-      if (!selectedWallet) return;
+      const response = await api.getWalletTokens(
+        deviceId,
+        selectedWallet.id,
+        selectedWallet.chain
+      );
 
-      const chain = selectedWallet.chain.toLowerCase();
-      const chainPath = chain === 'sol' ? 'solana' : 'evm';
-      console.log('Loading tokens for wallet:', selectedWallet.id);
-      
-      const response = await api.getTokens(deviceId, chain, selectedWallet.id);
-      
       if (response?.data) {
-        console.log('Token data loaded successfully');
-        setTokens(response.data.tokens);
-        setTotalBalance(response.data.total_value_usd);
-        const change = calculate24hChange(response.data.tokens);
-        setChange24h(change);
-        cacheData(response.data);
+        setTokens(response.data.tokens || []);
+        setTotalBalance(response.data.total_value_usd || '0.00');
+        if (response.data.price_change_24h) {
+          setChange24h(parseFloat(response.data.price_change_24h));
+        }
+
+        await AsyncStorage.setItem(
+          `tokens_${selectedWallet.id}`,
+          JSON.stringify({
+            data: response.data,
+            timestamp: Date.now()
+          })
+        );
       }
     } catch (error) {
       console.error('Failed to load tokens:', error);
-      setError(error?.message || 'Failed to load wallet data');
-      if (!tokens.length) {
-        await loadCachedData();
-      }
+      setError('Failed to load tokens');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -298,12 +293,12 @@ export default function WalletScreen({ navigation }) {
 
   const handleTokenVisibilityChanged = () => {
     console.log('Token visibility changed, refreshing wallet data...');
-    loadTokens(false);  // 确保这个方法会刷新代币列表
+    loadTokens(false);
   };
 
   const handleTokenManagementPress = () => {
     navigation.navigate('TokenManagement', {
-      onTokenVisibilityChanged: handleTokenVisibilityChanged  // 传递回调函数
+      onTokenVisibilityChanged: handleTokenVisibilityChanged
     });
   };
 
@@ -332,6 +327,76 @@ export default function WalletScreen({ navigation }) {
     </View>
   );
 
+  const handleWalletDeleted = async () => {
+    console.log('=== Handle Wallet Deleted Start ===');
+    try {
+      console.log('Setting selected wallet to null...');
+      setSelectedWallet(null);
+      
+      const deviceId = await DeviceManager.getDeviceId();
+      console.log('Getting updated wallet list...');
+      const response = await api.getWallets(deviceId);
+      const walletsArray = Array.isArray(response) ? response : [];
+      console.log('Updated wallets array:', walletsArray);
+      
+      setWallets(walletsArray);
+      
+      if (walletsArray.length === 0) {
+        console.log('No wallets remaining, setting wallet created to false...');
+        await DeviceManager.setWalletCreated(false);
+      } else {
+        console.log('Updating selected wallet to:', walletsArray[0]);
+        setSelectedWallet(walletsArray[0]);
+        await loadInitialData();
+      }
+      console.log('Delete wallet operation completed successfully');
+      return { success: true };
+    } catch (error) {
+      console.error('Error after wallet deletion:', error);
+      Alert.alert(
+        'Error',
+        'Failed to update wallet list. Please try again.'
+      );
+      return { success: false };
+    }
+    console.log('=== Handle Wallet Deleted End ===');
+  };
+
+  const handleDeleteWallet = () => {
+    navigation.navigate('PasswordVerification', {
+      screen: 'PasswordInput',
+      params: {
+        purpose: 'delete_wallet',
+        title: 'Delete Wallet',
+        walletId: selectedWallet?.id,
+        onSuccess: async (password) => {
+          try {
+            const deviceId = await DeviceManager.getDeviceId();
+            const deleteResponse = await api.deleteWallet(deviceId, selectedWallet.id, password);
+            if (deleteResponse?.status === 'success') {
+              await handleWalletDeleted();
+              return { success: true };
+            }
+            return { success: false };
+          } catch (error) {
+            console.error('Delete wallet error:', error);
+            return { success: false };
+          }
+        }
+      }
+    });
+  };
+
+  const renderWalletInfo = () => (
+    <View style={styles.walletInfo}>
+      <Image 
+        source={{ uri: selectedWallet?.avatar }}
+        style={styles.walletAvatar}
+      />
+      <Text style={styles.walletName}>{selectedWallet?.name}</Text>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#171C32" />
@@ -352,8 +417,17 @@ export default function WalletScreen({ navigation }) {
                 />
               )}
               <View style={styles.walletNameContainer}>
-                <Text style={styles.walletName} numberOfLines={1} ellipsizeMode="tail">
-                  {selectedWallet?.name || '选择钱包'}
+                <Text 
+                  style={styles.walletName} 
+                  numberOfLines={1} 
+                  ellipsizeMode="tail"
+                >
+                  {selectedWallet?.name 
+                    ? selectedWallet.name.length > 20 
+                      ? `${selectedWallet.name.slice(0, 20)}...` 
+                      : selectedWallet.name 
+                    : 'Select Wallet'
+                  }
                 </Text>
                 <Ionicons  
                   name="chevron-down" 
@@ -435,11 +509,13 @@ const styles = StyleSheet.create({
   walletNameContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    maxWidth: 180,
   },
   walletName: {
     color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
+    marginRight: 4,
   },
   dropdownIcon: {
     marginLeft: 4,
@@ -657,5 +733,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 4,
     height: 32,
+  },
+  walletInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+  },
+  walletAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
   },
 }); 

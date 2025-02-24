@@ -13,25 +13,24 @@ const instance = axios.create({
   }
 });
 
-// 响应拦截器
+// 修改响应拦截器
 instance.interceptors.response.use(
   response => response,
   error => {
-    // 更详细的错误处理
+    console.log('API Error Response:', error.response?.data);  // 添加日志
+    
     if (error.response) {
-      // 服务器返回错误，但不直接显示错误信息
-      return Promise.reject({
+      // 直接返回服务器的错误响应
+      return Promise.reject(error.response.data || {
         status: 'error',
-        message: 'An error occurred'  // 使用通用的英文错误信息
+        message: 'An error occurred'
       });
     } else if (error.request) {
-      // 请求发出但没有收到响应
       return Promise.reject({
         status: 'error',
         message: 'Network error, please check your connection'
       });
     } else {
-      // 请求配置出错
       return Promise.reject({
         status: 'error',
         message: 'Request failed'
@@ -40,20 +39,23 @@ instance.interceptors.response.use(
   }
 );
 
-// 添加链路径配置
+// 修改链路径配置
 const CHAIN_PATHS = {
   sol: 'solana',
   solana: 'solana',
   eth: 'evm',
-  evm: 'evm'
+  evm: 'evm',
+  base: 'evm',  // 添加 BASE 链映射
+  BASE: 'evm'   // 添加大写映射
 };
 
-// 获取链路径的辅助函数
+// 修改获取链路径的辅助函数
 const getChainPath = (chain) => {
   const chainKey = chain?.toLowerCase();
   const path = CHAIN_PATHS[chainKey];
   if (!path) {
     console.error('Unsupported chain:', chain);
+    return 'evm';  // 默认返回 evm
   }
   return path;
 };
@@ -107,17 +109,18 @@ export const api = {
     }
   },
 
-  async verifyMnemonic(deviceId, chain, mnemonic) {
-    try {
-      const response = await instance.post('/wallets/verify_mnemonic/', {
-        device_id: deviceId,
-        chain,
-        mnemonic
-      });
-      return response.data;
-    } catch (error) {
-      return handleApiError(error, 'Failed to verify mnemonic');
+  async verifyMnemonic(deviceId, chain, mnemonic, chainType) {
+    const response = await instance.post('/wallets/verify_mnemonic/', {
+      device_id: deviceId,
+      chain,
+      mnemonic
+    });
+    
+    if (!response.data) {
+      throw new Error('Failed to verify mnemonic');
     }
+    
+    return response.data;
   },
 
   async getWallets(deviceId) {
@@ -149,7 +152,11 @@ export const api = {
       });
       return response.data;
     } catch (error) {
-      return handleApiError(error, 'Failed to delete wallet');
+      // 不再直接返回错误对象，而是返回标准格式的响应
+      return {
+        status: 'error',
+        message: error.response?.data?.message || 'Incorrect password'
+      };
     }
   },
 
@@ -332,15 +339,16 @@ export const api = {
 
   async getPrivateKey(walletId, deviceId, password) {
     try {
-      const response = await instance.post(`/wallets/${walletId}/private_key/`, {
+      const response = await instance.post(`/wallets/${walletId}/show_private_key/`, {
         device_id: deviceId,
         payment_password: password
       });
       return response.data;
     } catch (error) {
+      // 不再抛出错误，而是返回错误状态对象
       return {
         status: 'error',
-        message: error.response?.data?.message || 'Failed to get private key'
+        message: error.response?.data?.message || 'Incorrect password'
       };
     }
   },
@@ -391,6 +399,41 @@ export const api = {
       return response.data;
     } catch (error) {
       throw error;
+    }
+  },
+
+  getWalletTokens: async (deviceId, walletId, chain) => {
+    const chainPath = getChainPath(chain);
+    const response = await instance.get(
+      `/${chainPath}/wallets/${walletId}/tokens/`,
+      {
+        params: { device_id: deviceId }
+      }
+    );
+    
+    if (!response.data) {
+      throw new Error('Failed to get wallet tokens');
+    }
+    
+    return response.data;
+  },
+
+  importPrivateKey: async (deviceId, chain, privateKey, password) => {
+    try {
+      console.log('Importing private key...', { deviceId, chain });
+      const response = await instance.post('/wallets/import_private_key/', {
+        device_id: deviceId,
+        chain,
+        private_key: privateKey,
+        payment_password: password
+      });
+      
+      console.log('Import API response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Import private key API error:', error);
+      // 直接返回错误响应
+      return error;
     }
   },
 }; 

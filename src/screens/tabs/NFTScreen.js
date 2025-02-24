@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../services/api';
 import { DeviceManager } from '../../utils/device';
 import { useWallet } from '../../contexts/WalletContext';
+import { useWalletNavigation } from '../../hooks/useWalletNavigation';
 
 const windowWidth = Dimensions.get('window').width;
 const COLUMN_COUNT = 2;
@@ -45,6 +46,8 @@ export default function NFTScreen({ navigation }) {
   const [nfts, setNFTs] = useState([]);
   const [error, setError] = useState(null);
   const [chain, setChain] = useState(null);
+
+  useWalletNavigation(navigation);
 
   useEffect(() => {
     if (selectedWallet) {

@@ -15,6 +15,7 @@ import EditWallet from '../screens/wallet/EditWallet';
 import ShowPrivateKey from '../screens/wallet/ShowPrivateKey';
 import TokenManagement from '../screens/TokenManagement';
 import RenameWallet from '../screens/wallet/RenameWallet';
+import DeleteWallet from '../screens/wallet/DeleteWallet';
 import PaymentPasswordScreen from '../screens/wallet/PaymentPasswordScreen';
 
 const Tab = createBottomTabNavigator();
@@ -136,6 +137,7 @@ export default function MainTabs() {
       <Stack.Screen name="ShowPrivateKey" component={ShowPrivateKey} />
       <Stack.Screen name="TokenManagement" component={TokenManagement} />
       <Stack.Screen name="RenameWallet" component={RenameWallet} />
+      <Stack.Screen name="DeleteWallet" component={DeleteWallet} />
       <Stack.Screen name="PaymentPasswordScreen" component={PaymentPasswordScreen} />
     </Stack.Navigator>
   );

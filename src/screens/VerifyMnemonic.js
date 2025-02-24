@@ -5,16 +5,24 @@ import {
   Text,
   TouchableOpacity,
   SafeAreaView,
-  StatusBar,
-  Platform,
-  Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../services/api';
 import { DeviceManager } from '../utils/device';
+import { CommonActions } from '@react-navigation/native';
+import Header from '../components/common/Header';
+import { useWallet } from '../contexts/WalletContext';
+
+// 添加链类型映射
+const CHAIN_TYPE_MAP = {
+  'ETH': 'evm',
+  'BASE': 'evm',
+  'SOL': 'solana'
+};
 
 export default function VerifyMnemonic({ navigation, route }) {
   const { mnemonic, chain, deviceId } = route.params;
+  const { updateSelectedWallet, checkAndUpdateWallets } = useWallet();
   const [selectedWords, setSelectedWords] = useState([]);
   const [availableWords, setAvailableWords] = useState([]);
 
@@ -42,76 +50,89 @@ export default function VerifyMnemonic({ navigation, route }) {
     }
 
     try {
-      await api.verifyMnemonic(deviceId, chain, mnemonic);
-      // 设置钱包创建状态
+      const chainType = CHAIN_TYPE_MAP[chain] || chain.toLowerCase();
+      
+      // 验证助记词并创建钱包
+      const response = await api.verifyMnemonic(deviceId, chain, mnemonic, chainType);
       await DeviceManager.setWalletCreated(true);
-      // 直接跳转到钱包首页
-      navigation.replace('MainTabs');
+      await DeviceManager.setChainType(chainType);
+
+      // 获取最新的钱包列表并更新选中的钱包
+      const result = await checkAndUpdateWallets();
+      if (!result.hasWallets) {
+        throw new Error('No wallets found after creation');
+      }
+      
+      // 修改导航逻辑
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 1,
+          routes: [
+            {
+              name: 'MainStack'
+            },
+            {
+              name: 'WalletSelector'
+            }
+          ]
+        })
+      );
     } catch (error) {
+      console.error('Verify error:', error);
       Alert.alert('Error', 'Failed to verify mnemonic');
     }
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#171C32" />
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Verify Backup Phrase</Text>
-          <View style={styles.backButton} />
+    <SafeAreaView style={styles.container}>
+      <Header 
+        title="Verify Phrase"
+        onBack={() => navigation.goBack()}
+      />
+      <View style={styles.content}>
+        <Text style={styles.title}>Verify Your Backup Phrase</Text>
+        <Text style={styles.subtitle}>
+          Select the words in the correct order to verify your backup phrase.
+        </Text>
+
+        <View style={styles.selectedContainer}>
+          {Array(12).fill(0).map((_, index) => (
+            <TouchableOpacity
+              key={index}
+              style={[styles.wordBox, selectedWords[index] && styles.wordBoxFilled]}
+              onPress={() => selectedWords[index] && handleRemoveWord(selectedWords[index], index)}
+            >
+              <Text style={styles.wordText}>
+                {selectedWords[index] || ''}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
-        <View style={styles.content}>
-          <Text style={styles.title}>Verify Your Backup Phrase</Text>
-          <Text style={styles.subtitle}>
-            Select the words in the correct order to verify your backup phrase.
-          </Text>
-
-          <View style={styles.selectedContainer}>
-            {Array(12).fill(0).map((_, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[styles.wordBox, selectedWords[index] && styles.wordBoxFilled]}
-                onPress={() => selectedWords[index] && handleRemoveWord(selectedWords[index], index)}
-              >
-                <Text style={styles.wordText}>
-                  {selectedWords[index] || ''}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <View style={styles.availableContainer}>
-            {availableWords.map((word, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.wordButton}
-                onPress={() => handleSelectWord(word, index)}
-              >
-                <Text style={styles.wordButtonText}>{word}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <TouchableOpacity 
-            style={[
-              styles.button,
-              selectedWords.length === 12 ? styles.buttonEnabled : styles.buttonDisabled
-            ]}
-            onPress={handleVerify}
-            disabled={selectedWords.length !== 12}
-          >
-            <Text style={styles.buttonText}>Verify</Text>
-          </TouchableOpacity>
+        <View style={styles.availableContainer}>
+          {availableWords.map((word, index) => (
+            <TouchableOpacity
+              key={index}
+              style={styles.wordButton}
+              onPress={() => handleSelectWord(word, index)}
+            >
+              <Text style={styles.wordButtonText}>{word}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
-      </SafeAreaView>
-    </View>
+
+        <TouchableOpacity 
+          style={[
+            styles.button,
+            selectedWords.length === 12 ? styles.buttonEnabled : styles.buttonDisabled
+          ]}
+          onPress={handleVerify}
+          disabled={selectedWords.length !== 12}
+        >
+          <Text style={styles.buttonText}>Verify</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
   );
 }
 
@@ -119,30 +140,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#171C32',
-  },
-  safeArea: {
-    flex: 1,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    height: 56,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
   },
   content: {
     flex: 1,

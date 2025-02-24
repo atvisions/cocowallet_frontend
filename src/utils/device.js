@@ -71,11 +71,23 @@ export const DeviceManager = {
 
   async hasPaymentPassword() {
     try {
+      // 从本地存储获取支付密码状态
+      const status = await AsyncStorage.getItem(PAYMENT_PASSWORD_SET_KEY);
+      
+      if (status === 'true') {
+        return true;
+      }
+
+      // 如果本地没有，从服务器获取
       const deviceId = await this.getDeviceId();
       const response = await api.checkPaymentPasswordStatus(deviceId);
+      
+      // 更新本地状态
+      await this.setPaymentPasswordStatus(response?.has_payment_password || false);
+      
       return response?.has_payment_password || false;
     } catch (error) {
-      console.error('Check payment password status error:', error);
+      console.error('Check payment password error:', error);
       return false;
     }
   },
@@ -110,4 +122,12 @@ export const DeviceManager = {
       throw error;
     }
   },
+
+  setChainType: async (chainType) => {
+    await AsyncStorage.setItem('chainType', chainType);
+  },
+
+  getChainType: async () => {
+    return await AsyncStorage.getItem('chainType') || 'evm';
+  }
 };

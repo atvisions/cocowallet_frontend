@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   Image,
   Alert,
+  Platform,
+  Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../services/api';
@@ -18,18 +20,24 @@ import { CommonActions } from '@react-navigation/native';
 export default function EditWallet({ route, navigation }) {
   const { wallet } = route.params;
   const { selectedWallet, updateSelectedWallet } = useWallet();
-  const [newName, setNewName] = useState(selectedWallet?.name || wallet.name);
+  const [currentWallet, setCurrentWallet] = useState(selectedWallet?.id === wallet.id ? selectedWallet : wallet);
   const [isCopied, setIsCopied] = useState(false);
 
   useEffect(() => {
+    if (selectedWallet?.id === wallet.id) {
+      setCurrentWallet(selectedWallet);
+    }
+  }, [selectedWallet, wallet.id]);
+
+  useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
-      if (selectedWallet) {
-        setNewName(selectedWallet.name);
+      if (selectedWallet?.id === wallet.id) {
+        setCurrentWallet(selectedWallet);
       }
     });
 
     return unsubscribe;
-  }, [navigation, selectedWallet]);
+  }, [navigation, selectedWallet, wallet.id]);
 
   const formatAddress = (address) => {
     if (!address) return '';
@@ -39,8 +47,8 @@ export default function EditWallet({ route, navigation }) {
   const handleRename = async () => {
     try {
       const deviceId = await DeviceManager.getDeviceId();
-      await api.renameWallet(wallet.id, deviceId, newName);
-      const updatedWallet = { ...wallet, name: newName };
+      await api.renameWallet(wallet.id, deviceId, currentWallet.name);
+      const updatedWallet = { ...wallet, name: currentWallet.name };
       updateSelectedWallet(updatedWallet);
       navigation.goBack();
     } catch (error) {
@@ -49,7 +57,7 @@ export default function EditWallet({ route, navigation }) {
   };
 
   const handleCopyAddress = async () => {
-    await Clipboard.setStringAsync(wallet.address);
+    await Clipboard.setStringAsync(currentWallet.address);
     setIsCopied(true);
     setTimeout(() => {
       setIsCopied(false);
@@ -65,20 +73,20 @@ export default function EditWallet({ route, navigation }) {
 
       <View style={styles.walletInfoContainer}>
         <View style={styles.walletAvatarContainer}>
-          <Image source={{ uri: wallet.avatar }} style={styles.walletAvatar} />
+          <Image source={{ uri: currentWallet.avatar }} style={styles.walletAvatar} />
         </View>
         <View style={styles.walletInfo}>
           <View style={styles.walletDetails}>
-            <Text style={styles.walletName}>{wallet.name}</Text>
+            <Text style={styles.walletName}>{currentWallet.name}</Text>
             <View style={styles.chainBadge}>
-              <Text style={styles.chainName}>{wallet.chain}</Text>
+              <Text style={styles.chainName}>{currentWallet.chain}</Text>
             </View>
             <TouchableOpacity 
               style={styles.addressContainer}
               onPress={handleCopyAddress}
             >
               <Text style={styles.walletAddress}>
-                {formatAddress(wallet.address)}
+                {formatAddress(currentWallet.address)}
               </Text>
               <Ionicons 
                 name={isCopied ? "checkmark-circle" : "copy-outline"} 
@@ -94,9 +102,11 @@ export default function EditWallet({ route, navigation }) {
       <View style={styles.actionList}>
         <TouchableOpacity 
           style={styles.actionItem}
-          onPress={() => navigation.navigate('RenameWallet', { wallet })}
+          onPress={() => navigation.navigate('RenameWallet', { wallet: currentWallet })}
         >
-          <Ionicons name="pencil-outline" size={24} color="#FFFFFF" />
+          <View style={[styles.iconContainer, styles.renameIcon]}>
+            <Ionicons name="text-outline" size={20} color="#FFFFFF" />
+          </View>
           <Text style={styles.actionText}>Rename Wallet</Text>
           <Ionicons name="chevron-forward" size={24} color="#8E8E8E" />
         </TouchableOpacity>
@@ -107,63 +117,27 @@ export default function EditWallet({ route, navigation }) {
             navigation.dispatch(
               CommonActions.navigate({
                 name: 'ShowPrivateKey',
-                params: { wallet }
+                params: { wallet: currentWallet }
               })
             );
           }}
         >
-          <Ionicons name="key-outline" size={24} color="#FFFFFF" />
+          <View style={[styles.iconContainer, styles.keyIcon]}>
+            <Ionicons name="shield-outline" size={20} color="#FFFFFF" />
+          </View>
           <Text style={styles.actionText}>Show Private Key</Text>
           <Ionicons name="chevron-forward" size={24} color="#8E8E8E" />
         </TouchableOpacity>
 
         <TouchableOpacity 
           style={[styles.actionItem, styles.deleteButton]}
-          onPress={() => {
-            navigation.navigate('PaymentPasswordScreen', {
-              title: 'Delete Wallet',
-              onSuccess: async (password) => {
-                try {
-                  const deviceId = await DeviceManager.getDeviceId();
-                  await api.deleteWallet(wallet.id, deviceId, password);
-                  
-                  if (selectedWallet?.id === wallet.id) {
-                    updateSelectedWallet(null);
-                  }
-
-                  Alert.alert('Success', 'Wallet deleted successfully', [
-                    {
-                      text: 'OK',
-                      onPress: () => {
-                        navigation.dispatch(
-                          CommonActions.reset({
-                            index: 0,
-                            routes: [
-                              {
-                                name: 'Tabs',
-                                state: {
-                                  routes: [
-                                    {
-                                      name: 'Wallet'
-                                    }
-                                  ]
-                                }
-                              }
-                            ],
-                          })
-                        );
-                      }
-                    }
-                  ]);
-                } catch (error) {
-                  Alert.alert('Error', error.message || 'Failed to delete wallet');
-                }
-              }
-            });
-          }}
+          onPress={() => navigation.navigate('DeleteWallet', { wallet: currentWallet })}
         >
-          <Ionicons name="trash-outline" size={24} color="#FF4B55" />
+          <View style={[styles.iconContainer, styles.deleteIcon]}>
+            <Ionicons name="trash-outline" size={20} color="#FF4B55" />
+          </View>
           <Text style={[styles.actionText, styles.deleteText]}>Delete Wallet</Text>
+          <Ionicons name="chevron-forward" size={24} color="#8E8E8E" />
         </TouchableOpacity>
       </View>
     </View>
@@ -246,6 +220,19 @@ const styles = StyleSheet.create({
     marginTop: 20,
     paddingHorizontal: 16,
   },
+  iconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  renameIcon: {
+    backgroundColor: '#1FC595',
+  },
+  keyIcon: {
+    backgroundColor: '#3B7CFF',
+  },
   actionItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -253,6 +240,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
+    zIndex: 1,
   },
   actionText: {
     color: '#FFFFFF',
@@ -262,6 +250,9 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     marginTop: 20,
+  },
+  deleteIcon: {
+    backgroundColor: 'rgba(255, 75, 85, 0.1)',
   },
   deleteText: {
     color: '#FF4B55',

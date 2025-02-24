@@ -5,48 +5,50 @@ import {
   Text,
   TouchableOpacity,
   Platform,
+  Animated,
+  Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Header from '../../components/common/Header';
 import PasswordDots from '../../components/common/PasswordDots';
-import * as LocalAuthentication from 'expo-local-authentication';
+import { DeviceManager } from '../../utils/device';
+import { api } from '../../services/api';
+import { CommonActions } from '@react-navigation/native';
+import { useWallet } from '../../contexts/WalletContext';
 
 export default function PaymentPasswordScreen({ route, navigation }) {
-  const { title = 'Enter Password', onSuccess, returnToRoute } = route.params;
+  const { title = 'Enter Password', action, walletId, onSuccess } = route.params || {};
   const [password, setPassword] = useState('');
-  const [isBiometricSupported, setIsBiometricSupported] = useState(false);
+  const [error, setError] = useState('');
+  const fadeAnim = useState(new Animated.Value(0))[0];
+  const { updateSelectedWallet, checkAndUpdateWallets } = useWallet();
 
   useEffect(() => {
-    checkBiometricSupport();
-  }, []);
-
-  useEffect(() => {
+    console.log('Password length:', password.length);
     if (password.length === 6) {
+      console.log('Password complete, submitting...');
       handleSubmit();
     }
   }, [password]);
 
-  const checkBiometricSupport = async () => {
-    const compatible = await LocalAuthentication.hasHardwareAsync();
-    setIsBiometricSupported(compatible);
-  };
-
-  const handleBiometricAuth = async () => {
-    try {
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Verify your identity',
-        cancelLabel: 'Cancel',
-        disableDeviceFallback: true,
-      });
-
-      if (result.success && onSuccess) {
-        await onSuccess('');
-        navigation.goBack();
-      }
-    } catch (error) {
-      console.error('Biometric auth error:', error);
+  useEffect(() => {
+    if (error) {
+      Animated.sequence([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.delay(3000),
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        })
+      ]).start(() => setError(''));
     }
-  };
+  }, [error]);
 
   const handleNumberPress = (number) => {
     if (password.length < 6) {
@@ -60,15 +62,123 @@ export default function PaymentPasswordScreen({ route, navigation }) {
 
   const handleSubmit = async () => {
     try {
-      if (onSuccess) {
-        const result = await onSuccess(password);
-        if (result) {
-          navigation.replace(result.screen, result.params);
-        } else {
-          navigation.goBack();
-        }
+      console.log('Handling submit with route params:', route.params);
+      const { purpose, action, chain, privateKey, walletId, onSuccess, fromWalletList } = route.params || {};
+      const deviceId = await DeviceManager.getDeviceId();
+
+      const actionType = purpose || action;
+      console.log('Action type:', actionType);
+
+      switch (actionType) {
+        case 'import_wallet':
+          console.log('Handling import wallet...', { chain, privateKey, password });
+          try {
+            const importResponse = await api.importPrivateKey(deviceId, chain, privateKey, password);
+            if (importResponse.status === 'success' && importResponse.wallet) {
+              // 根据来源决定导航行为
+              if (fromWalletList) {
+                // 从钱包列表来的，返回列表页
+                await checkAndUpdateWallets();
+                navigation.goBack();
+              } else {
+                // 从其他地方来的（如引导页），直接进入主页
+                await updateSelectedWallet(importResponse.wallet);
+                navigation.dispatch(
+                  CommonActions.reset({
+                    index: 0,
+                    routes: [
+                      {
+                        name: 'MainStack'
+                      }
+                    ]
+                  })
+                );
+              }
+            } else {
+              throw new Error(importResponse.message || 'Failed to import wallet');
+            }
+          } catch (error) {
+            console.error('Import wallet error:', error);
+            setError(error.message || 'Failed to import wallet');
+            setPassword('');
+          }
+          break;
+
+        case 'show_private_key':
+          console.log('Handling show private key...');
+          const keyResponse = await api.getPrivateKey(walletId, deviceId, password);
+          
+          if (keyResponse.status === 'success' && keyResponse.data?.private_key) {
+            navigation.replace('VerificationResult', {
+              privateKey: keyResponse.data.private_key
+            });
+          } else {
+            setError(keyResponse.message || 'Incorrect password');
+            setPassword('');
+          }
+          break;
+
+        case 'delete_wallet':
+          console.log('=== Delete Wallet Process Start ===');
+          try {
+            // 先删除钱包
+            console.log('Attempting to delete wallet...');
+            const result = await onSuccess(password);
+            console.log('Delete wallet result:', result);
+
+            if (result?.success) {
+              // 删除成功后，获取最新的钱包列表
+              console.log('Getting updated wallet list...');
+              const response = await api.getWallets(deviceId);
+              const walletsArray = Array.isArray(response) ? response : [];
+              console.log('Updated wallets array:', walletsArray);
+              
+              if (walletsArray.length === 0) {
+                console.log('No wallets remaining, navigating to Onboarding...');
+                // 如果没有钱包了，设置状态并导航到引导页
+                await DeviceManager.setWalletCreated(false);
+                await updateSelectedWallet(null);
+                navigation.dispatch(
+                  CommonActions.reset({
+                    index: 0,
+                    routes: [{ name: 'Onboarding' }]
+                  })
+                );
+              } else {
+                console.log('Wallets remaining, updating selected wallet:', walletsArray[0]);
+                // 如果还有其他钱包，选择第一个钱包并导航到主页面
+                await updateSelectedWallet(walletsArray[0]);
+                navigation.dispatch(
+                  CommonActions.reset({
+                    index: 0,
+                    routes: [{ name: 'MainStack' }]
+                  })
+                );
+              }
+            } else {
+              console.log('Failed to delete wallet:', result);
+              setError('Failed to delete wallet');
+              setPassword('');
+            }
+          } catch (error) {
+            console.error('Delete wallet error:', error);
+            setError(error.message || 'Failed to delete wallet');
+            setPassword('');
+          }
+          console.log('=== Delete Wallet Process End ===');
+          break;
+
+        default:
+          console.log('Handling default case...');
+          if (onSuccess) {
+            await onSuccess(password);
+            navigation.goBack();
+          }
+          break;
       }
     } catch (error) {
+      console.error('Password verification error:', error);
+      setError(error.message || 'Incorrect password');
       setPassword('');
     }
   };
@@ -115,10 +225,13 @@ export default function PaymentPasswordScreen({ route, navigation }) {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView 
+      style={styles.container}
+      edges={['top', 'right', 'left']}
+    >
       <Header 
         title={title}
-        onBack={() => navigation.goBack()} 
+        onBack={() => navigation.goBack()}
       />
 
       <View style={styles.content}>
@@ -126,30 +239,28 @@ export default function PaymentPasswordScreen({ route, navigation }) {
           Enter payment password to continue
         </Text>
 
-        {isBiometricSupported && (
-          <TouchableOpacity
-            style={styles.biometricButton}
-            onPress={handleBiometricAuth}
-          >
-            <Ionicons 
-              name={Platform.OS === 'ios' ? "finger-print" : "fingerprint"}
-              size={24}
-              color="#1FC595"
-            />
-            <Text style={styles.biometricText}>
-              Use fingerprint
-            </Text>
-          </TouchableOpacity>
-        )}
+        <View style={styles.passwordSection}>
+          <PasswordDots
+            length={6}
+            filledCount={password.length}
+          />
 
-        <PasswordDots
-          length={6}
-          filledCount={password.length}
-        />
+          <Animated.View 
+            style={[
+              styles.errorContainer,
+              { opacity: fadeAnim }
+            ]}
+          >
+            <Ionicons name="alert-circle" size={16} color="#FF4B55" />
+            <Text style={styles.errorText}>
+              {error}
+            </Text>
+          </Animated.View>
+        </View>
 
         {renderNumberPad()}
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -195,16 +306,25 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '600',
   },
-  biometricButton: {
+  passwordSection: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    marginBottom: 20,
+    backgroundColor: 'rgba(255, 75, 85, 0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 16,
+    position: 'absolute',
+    top: 80,
   },
-  biometricText: {
-    color: '#1FC595',
-    fontSize: 16,
+  errorText: {
+    color: '#FF4B55',
+    fontSize: 14,
     marginLeft: 8,
+    fontWeight: '500',
   },
 }); 
