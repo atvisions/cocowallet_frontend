@@ -84,6 +84,7 @@ export const api = {
       await DeviceManager.setPaymentPasswordStatus(true);
       return response.data;
     } catch (error) {
+      console.error('Error setting password API:', error);
       throw error;
     }
   },
@@ -418,22 +419,59 @@ export const api = {
     return response.data;
   },
 
-  importPrivateKey: async (deviceId, chain, privateKey, password) => {
+  async importPrivateKey(deviceId, chain, privateKey, password) {
     try {
-      console.log('Importing private key...', { deviceId, chain });
       const response = await instance.post('/wallets/import_private_key/', {
         device_id: deviceId,
         chain,
         private_key: privateKey,
         payment_password: password
       });
-      
-      console.log('Import API response:', response.data);
-      return response.data;
+      return response.data; // 确保返回的数据包含钱包信息
     } catch (error) {
       console.error('Import private key API error:', error);
-      // 直接返回错误响应
       return error;
     }
   },
+};
+
+export const setPaymentPassword = async (deviceId, password) => {
+    try {
+        const response = await fetch(`${BASE_URL}/wallets/set_password/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                device_id: deviceId,
+                payment_password: password,
+            }),
+        });
+
+        const data = await response.json();
+        return data; // 确保返回的数据包含 status 和 message
+    } catch (error) {
+        console.error('Error saving password:', error);
+        throw new Error('Failed to save password');
+    }
+};
+
+export const selectChain = async (deviceId, selectedChain) => {
+    const response = await fetch(`${BASE_URL}/select-chain`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            device_id: deviceId,
+            chain: selectedChain,
+        }),
+    });
+
+    if (!response.ok) {
+        const errorResponse = await response.json();
+        throw new Error(`API Error Response: ${JSON.stringify(errorResponse)}`);
+    }
+
+    return await response.json();
 }; 

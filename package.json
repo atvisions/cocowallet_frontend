@@ -35,7 +35,8 @@
     "react-native-screens": "^4.7.0",
     "react-native-skeleton-placeholder": "^5.2.4",
     "react-native-vector-icons": "^10.2.0",
-    "uuid": "^11.0.5"
+    "uuid": "^11.0.5",
+    "expo-blur": "~14.0.3"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"

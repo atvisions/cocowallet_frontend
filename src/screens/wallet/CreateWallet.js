@@ -38,7 +38,10 @@ export default function CreateWallet({ navigation }) {
 
           <TouchableOpacity 
             style={styles.option}
-            onPress={() => navigation.navigate('ImportWallet')}
+            onPress={() => {
+              console.log('Navigating to ImportWallet');
+              navigation.navigate('ImportWallet');
+            }}
           >
             <View style={styles.optionIcon}>
               <Ionicons name="download-outline" size={24} color="#FFFFFF" />

@@ -33,11 +33,14 @@ export default function ImportWallet({ navigation, route }) {
       const deviceId = await DeviceManager.getDeviceId();
       const hasPaymentPassword = await DeviceManager.hasPaymentPassword();
       
+      console.log('Device ID:', deviceId);
+      console.log('Has Payment Password:', hasPaymentPassword);
+
       if (hasPaymentPassword) {
-        // 修改导航方式，使用 navigate 而不是 replace
+        console.log('Navigating to PasswordVerification');
         navigation.navigate('PasswordVerification', {
-          screen: 'PasswordInput',  // 指定子导航器中的具体页面
-          params: {  // 使用 params 传递参数给子页面
+          screen: 'PasswordInput',
+          params: {
             purpose: 'import_wallet',
             title: 'Import Wallet',
             chain,
@@ -45,7 +48,7 @@ export default function ImportWallet({ navigation, route }) {
           }
         });
       } else {
-        // 如果没有设置密码，导航到设置密码页面
+        console.log('Navigating to SetPaymentPassword');
         navigation.navigate('SetPaymentPassword', {
           onSuccess: async (password) => {
             await importWallet(password);
@@ -69,19 +72,27 @@ export default function ImportWallet({ navigation, route }) {
         Alert.alert('Success', 'Wallet imported successfully', [
           {
             text: 'OK',
-            onPress: () => {
-              navigation.dispatch(
-                CommonActions.reset({
-                  index: 0,
-                  routes: [{ name: 'MainStack' }]
-                })
-              );
+            onPress: async () => {
+              setLoading(true);
+              await fetchWalletBalance(deviceId);
             }
           }
         ]);
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to import wallet');
+    }
+  };
+
+  const fetchWalletBalance = async (deviceId) => {
+    try {
+      const balanceResponse = await api.getWalletBalance(deviceId);
+      // 处理余额数据
+    } catch (error) {
+      console.error('Error fetching wallet balance:', error);
+      Alert.alert('Error', 'Failed to fetch wallet balance');
+    } finally {
+      setLoading(false);
     }
   };
 

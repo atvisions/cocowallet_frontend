@@ -13,6 +13,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { DeviceManager } from '../utils/device';
 import { LinearGradient } from 'expo-linear-gradient';
 import { typography } from '../styles/typography';
+import { api } from '../services/api';
+import SetPaymentPassword from './auth/SetPaymentPassword'; // 导入 SetPaymentPassword 组件
 
 const { width } = Dimensions.get('window');
 
@@ -61,11 +63,25 @@ export default function Onboarding({ navigation }) {
   const handleImportWallet = async () => {
     try {
       const deviceId = await DeviceManager.getDeviceId();
-      navigation.navigate('SelectChain', {
-        purpose: 'import',
-        deviceId,
-        fromOnboarding: true
-      });
+      const passwordStatus = await api.checkPaymentPasswordStatus(deviceId);
+
+      console.log('Password Status:', passwordStatus);
+
+      if (!passwordStatus) {
+        console.log('Navigating to SetPaymentPassword');
+        navigation.navigate('SetPaymentPassword', { 
+          fromOnboarding: true, 
+          previousScreen: 'ImportWallet',
+          nextScreen: 'ImportPrivateKey',
+        });
+      } else {
+        console.log('Navigating to SelectChain');
+        navigation.navigate('SelectChain', {
+          purpose: 'import',
+          deviceId,
+          fromOnboarding: true
+        });
+      }
     } catch (error) {
       console.error('Failed to get device ID:', error);
     }

@@ -5,9 +5,6 @@ import {
   Text,
   TouchableOpacity,
   SafeAreaView,
-  StatusBar,
-  Platform,
-  ScrollView,
   Animated
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +15,7 @@ export default function ShowMnemonic({ navigation, route }) {
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const modalOpacity = useRef(new Animated.Value(0)).current;
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!mnemonic || !chain || !deviceId) {
@@ -36,6 +34,13 @@ export default function ShowMnemonic({ navigation, route }) {
         duration: 200,
         useNativeDriver: true,
       }).start();
+    } else {
+      setLoading(true);
+      navigation.navigate('VerifyMnemonic', {
+        mnemonic,
+        chain,
+        deviceId
+      });
     }
   };
 
@@ -171,6 +176,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 20,
+    marginTop: 20,
   },
   title: {
     fontSize: 24,

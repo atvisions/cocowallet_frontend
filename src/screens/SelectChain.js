@@ -8,8 +8,6 @@ import {
   TouchableOpacity,
   Alert,
   SafeAreaView,
-  StatusBar,
-  Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../services/api';
@@ -137,10 +135,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#171C32',
+    paddingTop: 0, // 确保没有额外的顶部间距
   },
   content: {
     flex: 1,
     padding: 20,
+    marginTop: 10, // 调整顶部间距
   },
   title: {
     fontSize: 24,

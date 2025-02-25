@@ -17,7 +17,6 @@ import ShowPrivateKey from './src/screens/wallet/ShowPrivateKey';
 import PaymentPasswordScreen from './src/screens/wallet/PaymentPasswordScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import ChangePaymentPassword from './src/screens/auth/ChangePaymentPassword';
-import SetPassword from './src/screens/auth/SetPassword';
 import PrivateKeyDisplay from './src/screens/wallet/PrivateKeyDisplay';
 import Onboarding from './src/screens/Onboarding';
 import SelectChain from './src/screens/SelectChain';
@@ -104,7 +103,6 @@ function AppContent() {
       >
         <RootStack.Screen name="Onboarding" component={Onboarding} />
         <RootStack.Screen name="MainStack" component={MainStack} />
-        <RootStack.Screen name="SetPassword" component={SetPassword} />
         <RootStack.Screen name="SetPaymentPassword" component={SetPaymentPassword} />
         <RootStack.Screen name="SelectChain" component={SelectChain} />
         <RootStack.Screen name="ShowMnemonic" component={ShowMnemonic} />

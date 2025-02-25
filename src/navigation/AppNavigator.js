@@ -39,7 +39,7 @@ const AppNavigator = () => {
       <Stack.Screen name="ShowMnemonic" component={ShowMnemonic} />
       <Stack.Screen name="VerifyMnemonic" component={VerifyMnemonic} />
       <Stack.Screen name="ImportWallet" component={ImportWallet} />
-      <Stack.Screen name="SetPassword" component={SetPaymentPassword} />
+      <Stack.Screen name="SetPaymentPassword" component={SetPaymentPassword} />
       <Stack.Screen name="Settings" component={Settings} />
       <Stack.Screen name="SetBiometricPassword" component={SetBiometricPassword} />
       <Stack.Screen name="RenameWallet" component={RenameWallet} />
