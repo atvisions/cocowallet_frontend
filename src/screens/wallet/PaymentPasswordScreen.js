@@ -69,66 +69,13 @@ export default function PaymentPasswordScreen({ route, navigation }) {
       console.log('Submitting password for purpose:', purpose);
   
       if (purpose === 'import_wallet') {
-        console.log('Importing wallet with private key:', privateKey);
-        const importResponse = await api.importPrivateKey(deviceId, chain, privateKey, password);
-        if (importResponse.status === 'success') {
-          console.log('Wallet imported successfully:', importResponse.wallet);
-          if (importResponse.wallet) {
-            console.log('Processing wallet data...');
-            const processedWallet = processWalletData(importResponse.wallet);
-            console.log('Updating selected wallet...');
-            await updateSelectedWallet(processedWallet);
-            console.log('Selected wallet updated successfully');
-            
-            // 获取钱包余额和代币数据
-            try {
-              const tokensResponse = await api.getWalletTokens(
-                deviceId,
-                processedWallet.id,
-                processedWallet.chain
-              );
-              
-              if (tokensResponse?.data) {
-                // 缓存代币数据
-                await AsyncStorage.setItem(
-                  `tokens_${processedWallet.id}`,
-                  JSON.stringify({
-                    data: tokensResponse.data,
-                    timestamp: Date.now()
-                  })
-                );
-              }
-            } catch (error) {
-              console.error('Error fetching wallet tokens:', error);
-            }
-          }
-          
-          console.log('Resetting navigation to MainStack...');
-          navigation.dispatch(
-            CommonActions.reset({
-              index: 0,
-              routes: [
-                { 
-                  name: 'MainStack',
-                  params: {
-                    screen: 'Main',
-                    params: {
-                      screen: 'Tabs',
-                      params: {
-                        screen: 'Wallet'
-                      }
-                    }
-                  }
-                }
-              ]
-            })
-          );
-          console.log('Navigation reset completed');
-          return { success: true };
-        } else {
-          console.error('Import response failed:', importResponse);
-          throw new Error(importResponse.message || 'Failed to import wallet');
-        }
+        navigation.replace('LoadingWallet', {
+          purpose,
+          chain,
+          privateKey,
+          password
+        });
+        return { success: true };
       } else if (purpose === 'rename_wallet') {
         // 处理重命名钱包的逻辑
         const response = await api.renameWallet(walletId, deviceId, route.params.newName);
@@ -144,11 +91,31 @@ export default function PaymentPasswordScreen({ route, navigation }) {
         // 处理删除钱包的逻辑
         const response = await api.deleteWallet(walletId, deviceId, password);
         if (response.status === 'success') {
-          await checkAndUpdateWallets();
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'MainStack' }],
-          });
+          // 先清除当前选中的钱包
+          await updateSelectedWallet(null);
+          // 获取最新的钱包列表
+          const walletsResponse = await api.getWallets(deviceId);
+          const walletsArray = Array.isArray(walletsResponse) ? walletsResponse : [];
+          
+          if (walletsArray.length === 0) {
+            // 如果没有钱包了，设置钱包创建状态为false并导航到引导页
+            await DeviceManager.setWalletCreated(false);
+            navigation.dispatch(
+              CommonActions.reset({
+                index: 0,
+                routes: [{ name: 'Onboarding' }]
+              })
+            );
+          } else {
+            // 如果还有其他钱包，将第一个钱包设置为当前选中钱包
+            await updateSelectedWallet(walletsArray[0]);
+            navigation.dispatch(
+              CommonActions.reset({
+                index: 0,
+                routes: [{ name: 'MainStack' }]
+              })
+            );
+          }
           return { success: true };
         } else {
           throw new Error(response.message || 'Failed to delete wallet');

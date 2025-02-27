@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Alert,
   SafeAreaView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../services/api';
@@ -41,7 +42,7 @@ export default function SelectChain({ navigation, route }) {
     try {
       setLoading(true);
       const response = await api.getSupportedChains();
-      console.log('Supported chains response:', response); // 添加日志
+      console.log('Supported chains response:', response);
       const filteredChains = Object.entries(response.data.supported_chains)
         .filter(([key]) => SUPPORTED_CHAINS.includes(key))
         .map(([key, value]) => ({ 
@@ -63,7 +64,7 @@ export default function SelectChain({ navigation, route }) {
   };
 
   const handleChainSelect = async (chain) => {
-    const { purpose } = route.params; // 获取目的参数
+    const { purpose } = route.params;
     console.log('Selected chain:', chain);
     console.log('Purpose:', purpose);
 
@@ -98,20 +99,15 @@ export default function SelectChain({ navigation, route }) {
       onPress={() => handleChainSelect(item.id)}
     >
       <Image 
-        source={
-          // 如果 API 返回的 logo 无效，使用默认 logo
-          item.logo ? 
-            { uri: item.logo } : 
-            DEFAULT_CHAIN_LOGOS[item.id] || DEFAULT_CHAIN_LOGOS['ETH']
-        }
+        source={DEFAULT_CHAIN_LOGOS[item.id]}
         style={styles.chainLogo}
-        // 添加默认图片
-        defaultSource={DEFAULT_CHAIN_LOGOS[item.id]}
       />
       <View style={styles.chainInfo}>
         <Text style={styles.chainName}>{item.name}</Text>
-        <Text style={styles.chainSymbol}>{item.symbol}</Text>
+        <Text style={styles.chainSymbol}>{item.id}</Text>
+        <Text style={styles.chainDescription}>{item.description}</Text>
       </View>
+      <Ionicons name="chevron-forward" size={24} color="#8E8E8E" />
     </TouchableOpacity>
   );
 
@@ -122,17 +118,19 @@ export default function SelectChain({ navigation, route }) {
         onBack={() => navigation.goBack()}
       />
       <View style={styles.content}>
-        <FlatList
-          data={chains}
-          renderItem={renderChainItem}
-          keyExtractor={item => item.id}
-          contentContainerStyle={styles.listContainer}
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
-        />
+        {loading ? (
+          <Loading />
+        ) : (
+          <FlatList
+            data={chains}
+            renderItem={renderChainItem}
+            keyExtractor={item => item.id}
+            contentContainerStyle={styles.listContainer}
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+          />
+        )}
       </View>
-
-      {loading && <Loading />}
     </SafeAreaView>
   );
 }
@@ -144,38 +142,52 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 16,
+    marginTop: 16,
   },
   listContainer: {
-    paddingVertical: 12,
+    padding: 16,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 16,
   },
   chainItem: {
     flexDirection: 'row',
-    backgroundColor: '#272C52',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
     alignItems: 'center',
+    backgroundColor: '#272C52',
+    borderRadius: 12,
+    paddingLeft: 26,
+    marginBottom: 12,
+    paddingRight: 16,
   },
   chainLogo: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    marginRight: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
   },
   chainInfo: {
     flex: 1,
+    marginLeft: 2,
+    justifyContent: 'center',  // 确保文字容器垂直居中
   },
   chainName: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 16,
     color: '#FFFFFF',
-    marginBottom: 4,
-    fontFamily: 'Gilroy-SemiBold',
+    fontWeight: 'bold',
+    lineHeight: 20,  // 添加行高确保文字对齐
+    marginTop: 20,  // 微调两行文字间距
   },
   chainSymbol: {
     fontSize: 14,
     color: '#8E8E8E',
-    fontFamily: 'Gilroy-Medium',
+    marginTop: 2,  // 微调两行文字间距
+    lineHeight: 18,  // 添加行高确保文字对齐
+  },
+  chainDescription: {
+    fontSize: 14,
+    color: '#8E8E8E',
+  },
+  chainSymbol: {
+    fontSize: 14,
+    color: '#1FC595',
+    marginBottom: 4,
   },
 });

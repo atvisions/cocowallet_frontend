@@ -14,14 +14,7 @@ export default function Header({ title, onBack, rightComponent }) {
   const insets = useSafeAreaInsets();
   
   return (
-    <View style={[
-      styles.container,
-      { 
-        paddingTop: Platform.OS === 'ios' 
-          ? Math.max(insets.top - 20, 0)  // 增加到减少20的顶部间距
-          : Math.max(StatusBar.currentHeight - 20, 0)  // 增加到减少20的顶部间距
-      }
-    ]}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.content}>
         {onBack && (
           <TouchableOpacity 
@@ -68,4 +61,4 @@ const styles = StyleSheet.create({
   rightComponent: {
     marginLeft: 8,
   },
-}); 
+});

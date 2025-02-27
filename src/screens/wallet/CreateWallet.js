@@ -3,9 +3,9 @@ import {
   StyleSheet, 
   View, 
   Text, 
-  TouchableOpacity, 
-  SafeAreaView 
+  TouchableOpacity
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import Header from '../../components/common/Header';
 
@@ -109,4 +109,4 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     opacity: 0.8,
   },
-}); 
+});

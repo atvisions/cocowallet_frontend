@@ -78,19 +78,31 @@ export default function WalletScreen({ navigation }) {
       
       const walletsArray = Array.isArray(response) ? response : [];
       setWalletsState(walletsArray);
+      setWallets(walletsArray); // Update the global wallet state
       
       if (walletsArray.length > 0) {
-        if (!selectedWallet) {
+        // Check if the selected wallet still exists in the updated wallet list
+        const selectedWalletExists = walletsArray.some(wallet => wallet.id === selectedWallet?.id);
+        
+        if (!selectedWallet || !selectedWalletExists) {
           console.log('Setting initial wallet:', walletsArray[0]);
           await updateSelectedWallet(walletsArray[0]);
         }
       } else {
+        // No wallets exist, clear the selected wallet
+        setSelectedWallet(null);
         updateSelectedWallet(null);
+        setTokens([]);
+        setTotalBalance('0.00');
       }
     } catch (error) {
       console.error('Failed to load initial data:', error);
       setWalletsState([]);
+      setWallets([]); // Update the global wallet state
+      setSelectedWallet(null);
       updateSelectedWallet(null);
+      setTokens([]);
+      setTotalBalance('0.00');
     } finally {
       setIsLoading(false);
     }
@@ -334,8 +346,12 @@ export default function WalletScreen({ navigation }) {
   const handleWalletDeleted = async () => {
     console.log('=== Handle Wallet Deleted Start ===');
     try {
-      console.log('Setting selected wallet to null...');
-      setSelectedWallet(null);
+      // 先清除当前选中的钱包
+      await new Promise(resolve => {
+        setSelectedWallet(null);
+        setWalletsState([]);
+        setTimeout(resolve, 100);
+      });
       
       const deviceId = await DeviceManager.getDeviceId();
       console.log('Getting updated wallet list...');
@@ -343,16 +359,26 @@ export default function WalletScreen({ navigation }) {
       const walletsArray = Array.isArray(response) ? response : [];
       console.log('Updated wallets array:', walletsArray);
       
-      setWallets(walletsArray);
-      
       if (walletsArray.length === 0) {
         console.log('No wallets remaining, setting wallet created to false...');
         await DeviceManager.setWalletCreated(false);
+        navigation.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: 'Onboarding' }]
+          })
+        );
       } else {
-        console.log('Updating selected wallet to:', walletsArray[0]);
-        setSelectedWallet(walletsArray[0]);
-        await loadInitialData();
+        // 确保状态更新的顺序正确
+        await new Promise(resolve => {
+          setWalletsState(walletsArray);
+          setTimeout(() => {
+            setSelectedWallet(walletsArray[0]);
+            resolve();
+          }, 100);
+        });
       }
+      
       console.log('Delete wallet operation completed successfully');
       return { success: true };
     } catch (error) {
@@ -363,7 +389,6 @@ export default function WalletScreen({ navigation }) {
       );
       return { success: false };
     }
-    console.log('=== Handle Wallet Deleted End ===');
   };
 
   const handleDeleteWallet = () => {

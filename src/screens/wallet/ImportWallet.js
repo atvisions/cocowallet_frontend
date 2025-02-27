@@ -6,10 +6,8 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
-  Platform,
-  StatusBar,
+  SafeAreaView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../services/api';
 import { DeviceManager } from '../../utils/device';
@@ -31,24 +29,23 @@ export default function ImportWallet({ navigation, route }) {
       return;
     }
 
-    try {
-      setLoading(true);
-      // 直接导航到密码验证页面
-      navigation.navigate('PasswordVerification', {
-        screen: 'PasswordInput',
-        params: {
-          purpose: 'import_wallet',
-          chain: chain,
-          privateKey: privateKey,
-          title: 'Import Wallet'
+    navigation.navigate('PasswordVerification', {
+      screen: 'PasswordInput',
+      params: {
+        purpose: 'import_wallet',
+        title: 'Import Wallet',
+        chain,
+        privateKey,
+        onSuccess: async (password) => {
+          navigation.navigate('LoadingWallet', {
+            chain,
+            privateKey,
+            password
+          });
+          return true;
         }
-      });
-    } catch (error) {
-      console.error('Import wallet error:', error);
-      Alert.alert('Error', 'Failed to import wallet');
-    } finally {
-      setLoading(false);
-    }
+      }
+    });
   };
 
   const importWallet = async (password) => {

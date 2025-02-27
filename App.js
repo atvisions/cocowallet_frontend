@@ -24,6 +24,7 @@ import SelectChain from './src/screens/wallet/SelectChain';
 import ShowMnemonic from './src/screens/wallet/ShowMnemonic';
 import VerifyMnemonic from './src/screens/wallet/VerifyMnemonic';
 import ImportWallet from './src/screens/wallet/ImportWallet';
+import LoadingWallet from './src/screens/wallet/LoadingWallet';
 
 const Stack = createStackNavigator();
 const RootStack = createStackNavigator();
@@ -146,6 +147,7 @@ function AppContent() {
         <RootStack.Screen name="ShowMnemonic" component={ShowMnemonic} />
         <RootStack.Screen name="VerifyMnemonic" component={VerifyMnemonic} />
         <RootStack.Screen name="ImportWallet" component={ImportWallet} />
+        <RootStack.Screen name="LoadingWallet" component={LoadingWallet} />
         <RootStack.Screen 
           name="PasswordVerification" 
           component={PasswordVerificationStack}
