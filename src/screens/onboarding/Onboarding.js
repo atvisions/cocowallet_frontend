@@ -10,30 +10,31 @@ import {
   FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { DeviceManager } from '../utils/device';
+import { DeviceManager } from '../../utils/device';
 import { LinearGradient } from 'expo-linear-gradient';
-import { typography } from '../styles/typography';
-import { api } from '../services/api';
-import SetPaymentPassword from './auth/SetPaymentPassword'; // 导入 SetPaymentPassword 组件
+import { typography } from '../../styles/typography';
+import { api } from '../../services/api';
+import SetPaymentPassword from '../../screens/auth/SetPaymentPassword'; // 导入 SetPaymentPassword 组件
+
 
 const { width } = Dimensions.get('window');
 
 const slides = [
   {
     id: '1',
-    image: require('../../assets/boarding1.jpg'),
+    image: require('../../../assets/boarding1.jpg'), // 确保路径正确
     title: 'Welcome to COCO Wallet',
     subtitle: 'Your Secure Digital Asset Manager'
   },
   {
     id: '2',
-    image: require('../../assets/boarding2.jpg'),
+    image: require('../../../assets/boarding2.jpg'),
     title: 'Safe & Reliable',
     subtitle: 'Advanced encryption and security protocols'
   },
   {
     id: '3',
-    image: require('../../assets/boarding3.jpg'),
+    image: require('../../../assets/boarding3.jpg'),
     title: 'Get Started',
     subtitle: 'Begin your crypto journey today'
   },
@@ -50,11 +51,25 @@ export default function Onboarding({ navigation }) {
   const handleCreateWallet = async () => {
     try {
       const deviceId = await DeviceManager.getDeviceId();
-      navigation.navigate('SelectChain', {
-        purpose: 'create',
-        deviceId,
-        fromOnboarding: true
-      });
+      console.log('Device ID for creating wallet:', deviceId);
+      const passwordStatus = await api.checkPaymentPasswordStatus(deviceId);
+      console.log('Password Status:', passwordStatus);
+
+      if (!passwordStatus) {
+        console.log('Navigating to SetPaymentPassword for creating wallet');
+        navigation.navigate('SetPaymentPassword', { 
+          fromOnboarding: true, 
+          previousScreen: 'CreateWallet',
+          nextScreen: 'SelectChain',
+        });
+      } else {
+        console.log('Navigating to SelectChain for creating wallet');
+        navigation.navigate('SelectChain', {
+          purpose: 'create',
+          deviceId,
+          fromOnboarding: true
+        });
+      }
     } catch (error) {
       console.error('Failed to get device ID:', error);
     }
@@ -63,19 +78,19 @@ export default function Onboarding({ navigation }) {
   const handleImportWallet = async () => {
     try {
       const deviceId = await DeviceManager.getDeviceId();
+      console.log('Device ID for importing wallet:', deviceId);
       const passwordStatus = await api.checkPaymentPasswordStatus(deviceId);
-
       console.log('Password Status:', passwordStatus);
 
       if (!passwordStatus) {
-        console.log('Navigating to SetPaymentPassword');
+        console.log('Navigating to SetPaymentPassword for importing wallet');
         navigation.navigate('SetPaymentPassword', { 
           fromOnboarding: true, 
           previousScreen: 'ImportWallet',
-          nextScreen: 'ImportPrivateKey',
+          nextScreen: 'SelectChain',
         });
       } else {
-        console.log('Navigating to SelectChain');
+        console.log('Navigating to SelectChain for importing wallet');
         navigation.navigate('SelectChain', {
           purpose: 'import',
           deviceId,
@@ -94,7 +109,7 @@ export default function Onboarding({ navigation }) {
           <View style={styles.header}>
             <View style={styles.logoContainer}>
               <Image 
-                source={require('../../assets/icon.png')} 
+                source={require('../../../assets/icon.png')} 
                 style={styles.logo}
                 resizeMode="cover"
               />
@@ -318,4 +333,4 @@ const styles = StyleSheet.create({
     backgroundColor: '#1FC595',
     width: 24,
   },
-}); 
+});

@@ -23,7 +23,7 @@ export default function CreateWallet({ navigation }) {
         <View style={styles.optionsContainer}>
           <TouchableOpacity 
             style={styles.option}
-            onPress={() => navigation.navigate('NewWallet')}
+            onPress={() => navigation.navigate('SelectChain', { purpose: 'create' })}
           >
             <View style={styles.optionIcon}>
               <MaterialIcons name="add" size={24} color="#FFFFFF" />

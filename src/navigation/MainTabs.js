@@ -17,6 +17,7 @@ import TokenManagement from '../screens/TokenManagement';
 import RenameWallet from '../screens/wallet/RenameWallet';
 import DeleteWallet from '../screens/wallet/DeleteWallet';
 import PaymentPasswordScreen from '../screens/wallet/PaymentPasswordScreen';
+import SelectChain from '../screens/wallet/SelectChain';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -124,12 +125,14 @@ function TabScreens() {
   );
 }
 
-export default function MainTabs() {
+const MainStack = () => {
   return (
     <Stack.Navigator
       screenOptions={{
-        headerShown: false
+        headerShown: false,
+        cardStyle: { backgroundColor: '#171C32' },
       }}
+      initialRouteName="Tabs"
     >
       <Stack.Screen name="Tabs" component={TabScreens} />
       <Stack.Screen name="WalletSelector" component={WalletSelector} />
@@ -141,7 +144,9 @@ export default function MainTabs() {
       <Stack.Screen name="PaymentPasswordScreen" component={PaymentPasswordScreen} />
     </Stack.Navigator>
   );
-}
+};
+
+export default MainStack;
 
 const styles = StyleSheet.create({
   tabBar: {

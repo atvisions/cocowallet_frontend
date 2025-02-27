@@ -16,6 +16,7 @@ import { api } from '../../services/api';
 import { DeviceManager } from '../../utils/device';
 import { useWallet } from '../../contexts/WalletContext';
 import Header from '../../components/common/Header';
+import { processWalletList } from '../../utils/walletUtils';
 
 export default function WalletSelector({ navigation }) {
   const { selectedWallet, updateSelectedWallet } = useWallet();
@@ -38,7 +39,8 @@ export default function WalletSelector({ navigation }) {
     try {
       const deviceId = await DeviceManager.getDeviceId();
       const response = await api.getWallets(deviceId);
-      setWallets(response);
+      const processedWallets = processWalletList(response);
+      setWallets(processedWallets);
       setIsRefreshing(false);
     } catch (error) {
       console.error('Failed to load wallets:', error);
@@ -269,4 +271,4 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     padding: 4,
   },
-}); 
+});

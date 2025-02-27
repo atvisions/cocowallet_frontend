@@ -7,11 +7,12 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { api } from '../services/api';
-import { DeviceManager } from '../utils/device';
+import { api } from '../../services/api';
+import { DeviceManager } from '../../utils/device';
 import { CommonActions } from '@react-navigation/native';
-import Header from '../components/common/Header';
-import { useWallet } from '../contexts/WalletContext';
+import Header from '../../components/common/Header';
+import { useWallet } from '../../contexts/WalletContext';
+import { processWalletData } from '../../utils/walletUtils';
 
 // 添加链类型映射
 const CHAIN_TYPE_MAP = {
@@ -44,37 +45,21 @@ export default function VerifyMnemonic({ navigation, route }) {
 
   const handleVerify = async () => {
     const verifyMnemonic = selectedWords.join(' ');
+    console.log('Verifying mnemonic:', verifyMnemonic);
     if (verifyMnemonic !== mnemonic) {
       Alert.alert('Error', 'The backup phrase is incorrect. Please try again.');
       return;
     }
 
     try {
-      const chainType = CHAIN_TYPE_MAP[chain] || chain.toLowerCase();
-      
-      // 验证助记词并创建钱包
-      const response = await api.verifyMnemonic(deviceId, chain, mnemonic, chainType);
-      await DeviceManager.setWalletCreated(true);
-      await DeviceManager.setChainType(chainType);
-
-      // 获取最新的钱包列表并更新选中的钱包
-      const result = await checkAndUpdateWallets();
-      if (!result.hasWallets) {
-        throw new Error('No wallets found after creation');
-      }
-      
-      // 修改导航逻辑
+      const response = await api.verifyMnemonic(deviceId, chain, mnemonic);
+      console.log('Mnemonic verified successfully:', response);
+      const processedWallet = processWalletData(response.wallet);
+      await updateSelectedWallet(processedWallet);
       navigation.dispatch(
         CommonActions.reset({
-          index: 1,
-          routes: [
-            {
-              name: 'MainStack'
-            },
-            {
-              name: 'WalletSelector'
-            }
-          ]
+          index: 0,
+          routes: [{ name: 'MainStack' }]
         })
       );
     } catch (error) {
@@ -216,4 +201,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-}); 
+});

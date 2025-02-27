@@ -8,7 +8,7 @@ import {
   Animated
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Header from '../components/common/Header';
+import Header from '../../components/common/Header';
 
 export default function ShowMnemonic({ navigation, route }) {
   const { mnemonic, chain, deviceId } = route.params || {};

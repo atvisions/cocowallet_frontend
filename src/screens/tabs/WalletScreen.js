@@ -44,7 +44,11 @@ export default function WalletScreen({ navigation }) {
 
   useEffect(() => {
     if (selectedWallet) {
-      console.log('Selected wallet changed, loading data...');
+      console.log('Selected wallet changed, loading data...', {
+        walletId: selectedWallet.id,
+        walletName: selectedWallet.name,
+        avatarUrl: selectedWallet.avatar
+      });
       loadCachedData().then(hasCachedData => {
         if (!hasCachedData) {
           loadTokens(true);
@@ -387,15 +391,19 @@ export default function WalletScreen({ navigation }) {
     });
   };
 
-  const renderWalletInfo = () => (
-    <View style={styles.walletInfo}>
-      <Image 
-        source={{ uri: selectedWallet?.avatar }}
-        style={styles.walletAvatar}
-      />
-      <Text style={styles.walletName}>{selectedWallet?.name}</Text>
-    </View>
-  );
+  const renderWalletInfo = () => {
+    console.log('Rendering wallet info with avatar URL:', selectedWallet?.avatar);
+    return (
+      <View style={styles.walletInfo}>
+        <Image 
+          source={{ uri: selectedWallet?.avatar }}
+          style={styles.walletAvatar}
+          onError={(error) => console.error('Failed to load wallet avatar:', error)}
+        />
+        <Text style={styles.walletName}>{selectedWallet?.name}</Text>
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -745,4 +753,4 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginRight: 12,
   },
-}); 
+});

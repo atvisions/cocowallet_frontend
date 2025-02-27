@@ -126,9 +126,12 @@ export const api = {
 
   async getWallets(deviceId) {
     try {
+      console.log('[API] Fetching wallets for device:', deviceId);
       const response = await instance.get(`/wallets/?device_id=${deviceId}`);
+      console.log('[API] Wallets fetched successfully');
       return response.data;
     } catch (error) {
+      console.error('[API] Failed to get wallets:', error);
       return handleApiError(error, 'Failed to get wallets');
     }
   },
@@ -185,7 +188,12 @@ export const api = {
       return response.data?.data?.has_payment_password || false;
     } catch (error) {
       console.error('Check payment password status error:', error);
-      return false;
+      // 返回标准格式的错误响应
+      return {
+        status: 'error',
+        message: error.response?.data?.message || '网络连接错误，请检查网络状态',
+        hasPassword: false
+      };
     }
   },
 
@@ -207,11 +215,13 @@ export const api = {
 
   async getTokens(deviceId, chain, walletId) {
     try {
-      // 根据链类型选择不同的路径
+      console.log(`[API] Fetching tokens for wallet ${walletId} on chain ${chain}`);
       const chainPath = getChainPath(chain);
       const response = await instance.get(`/${chainPath}/wallets/${walletId}/tokens/?device_id=${deviceId}`);
+      console.log('[API] Tokens fetched successfully');
       return response.data;
     } catch (error) {
+      console.error('[API] Failed to fetch tokens:', error);
       throw error;
     }
   },
@@ -421,15 +431,17 @@ export const api = {
 
   async importPrivateKey(deviceId, chain, privateKey, password) {
     try {
+      console.log('[API] Importing private key for chain:', chain);
       const response = await instance.post('/wallets/import_private_key/', {
         device_id: deviceId,
         chain,
         private_key: privateKey,
         payment_password: password
       });
-      return response.data; // 确保返回的数据包含钱包信息
+      console.log('[API] Private key imported successfully');
+      return response.data;
     } catch (error) {
-      console.error('Import private key API error:', error);
+      console.error('[API] Import private key error:', error);
       return error;
     }
   },
@@ -474,4 +486,4 @@ export const selectChain = async (deviceId, selectedChain) => {
     }
 
     return await response.json();
-}; 
+};

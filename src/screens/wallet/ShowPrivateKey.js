@@ -18,24 +18,6 @@ export default function ShowPrivateKey({ route, navigation }) {
   const { wallet } = route.params;
   const [isConfirmed, setIsConfirmed] = useState(false);
 
-  const handlePasswordSuccess = async (password) => {
-    try {
-      const deviceId = await DeviceManager.getDeviceId();
-      const response = await api.getPrivateKey(wallet.id, deviceId, password);
-      
-      if (response.status === 'success' && response.data?.private_key) {
-        navigation.navigate('PrivateKeyDisplay', {
-          privateKey: response.data.private_key
-        });
-        return true; // 表示成功
-      } else {
-        return false; // 表示失败
-      }
-    } catch (error) {
-      return false; // 表示失败
-    }
-  };
-
   const handleContinue = () => {
     if (isConfirmed) {
       navigation.navigate('PasswordVerification', {
@@ -43,7 +25,24 @@ export default function ShowPrivateKey({ route, navigation }) {
         params: {
           purpose: 'show_private_key',
           title: 'Show Private Key',
-          walletId: wallet.id
+          walletId: wallet.id,
+          onSuccess: async (password) => {
+            try {
+              const deviceId = await DeviceManager.getDeviceId();
+              const response = await api.getPrivateKey(wallet.id, deviceId, password);
+              
+              if (response.status === 'success' && response.data?.private_key) {
+                navigation.replace('PrivateKeyDisplay', {
+                  privateKey: response.data.private_key
+                });
+                return true;
+              }
+              return false;
+            } catch (error) {
+              console.error('Failed to get private key:', error);
+              return false;
+            }
+          }
         }
       });
     }
@@ -216,4 +215,4 @@ const styles = StyleSheet.create({
   confirmButtonTextDisabled: {
     color: '#8E8E8E',
   },
-}); 
+});

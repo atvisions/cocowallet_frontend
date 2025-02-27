@@ -10,10 +10,10 @@ import {
   SafeAreaView
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { api } from '../services/api';
-import { DeviceManager } from '../utils/device';
+import { api } from '../../services/api';
+import { DeviceManager } from '../../utils/device';
 import Constants from 'expo-constants';
-import Header from '../components/common/Header';
+import Header from '../../components/common/Header';
 
 export default function SettingsScreen({ navigation }) {
   const [hasPaymentPassword, setHasPaymentPassword] = useState(false);

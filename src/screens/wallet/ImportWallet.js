@@ -16,11 +16,14 @@ import { DeviceManager } from '../../utils/device';
 import Header from '../../components/common/Header';
 import Loading from '../../components/common/Loading';
 import { CommonActions } from '@react-navigation/native';
+import { useWallet } from '../../contexts/WalletContext';
+import { processWalletData } from '../../utils/walletUtils';
 
 export default function ImportWallet({ navigation, route }) {
+  const { updateSelectedWallet } = useWallet();
   const [privateKey, setPrivateKey] = useState('');
   const [loading, setLoading] = useState(false);
-  const { chain } = route.params;
+  const { chain } = route.params || {};
 
   const handleImport = async () => {
     if (!privateKey.trim()) {
@@ -30,31 +33,16 @@ export default function ImportWallet({ navigation, route }) {
 
     try {
       setLoading(true);
-      const deviceId = await DeviceManager.getDeviceId();
-      const hasPaymentPassword = await DeviceManager.hasPaymentPassword();
-      
-      console.log('Device ID:', deviceId);
-      console.log('Has Payment Password:', hasPaymentPassword);
-
-      if (hasPaymentPassword) {
-        console.log('Navigating to PasswordVerification');
-        navigation.navigate('PasswordVerification', {
-          screen: 'PasswordInput',
-          params: {
-            purpose: 'import_wallet',
-            title: 'Import Wallet',
-            chain,
-            privateKey
-          }
-        });
-      } else {
-        console.log('Navigating to SetPaymentPassword');
-        navigation.navigate('SetPaymentPassword', {
-          onSuccess: async (password) => {
-            await importWallet(password);
-          }
-        });
-      }
+      // 直接导航到密码验证页面
+      navigation.navigate('PasswordVerification', {
+        screen: 'PasswordInput',
+        params: {
+          purpose: 'import_wallet',
+          chain: chain,
+          privateKey: privateKey,
+          title: 'Import Wallet'
+        }
+      });
     } catch (error) {
       console.error('Import wallet error:', error);
       Alert.alert('Error', 'Failed to import wallet');
@@ -69,17 +57,22 @@ export default function ImportWallet({ navigation, route }) {
       const response = await api.importPrivateKey(deviceId, chain, privateKey, password);
       
       if (response?.status === 'success') {
-        Alert.alert('Success', 'Wallet imported successfully', [
-          {
-            text: 'OK',
-            onPress: async () => {
-              setLoading(true);
-              await fetchWalletBalance(deviceId);
-            }
-          }
-        ]);
+        // 处理钱包数据，确保头像URL正确
+        if (response.wallet) {
+          const processedWallet = processWalletData(response.wallet);
+          await updateSelectedWallet(processedWallet);
+        }
+        
+        // 直接使用 CommonActions.reset 重置导航栈并进入主页面
+        navigation.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: 'MainStack' }]
+          })
+        );
       }
     } catch (error) {
+      console.error('Import wallet error:', error);
       Alert.alert('Error', 'Failed to import wallet');
     }
   };
@@ -170,4 +163,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-}); 
+  option: {
+    backgroundColor: '#1FC595',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  optionTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+});

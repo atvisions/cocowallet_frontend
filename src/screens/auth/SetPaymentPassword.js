@@ -12,6 +12,7 @@ import { api } from '../../services/api';
 import { DeviceManager } from '../../utils/device';
 import PasswordDots from '../../components/common/PasswordDots';
 import Header from '../../components/common/Header';
+import { useWallet } from '../../contexts/WalletContext';
 
 export default function SetPaymentPassword({ navigation, route }) {
   const { walletType } = route.params;
@@ -19,6 +20,7 @@ export default function SetPaymentPassword({ navigation, route }) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [step, setStep] = useState(1);
   const [error, setError] = useState('');
+  const { selectedChain } = useWallet();
 
   const handleNumberPress = (number) => {
     if (step === 1 && password.length < 6) {
@@ -49,36 +51,48 @@ export default function SetPaymentPassword({ navigation, route }) {
   };
 
   const handleNext = async (newConfirmPassword) => {
+    console.log('Setting password:', password);
     if (password !== newConfirmPassword) {
       setError('Passwords do not match');
       Alert.alert('Error', 'Passwords do not match');
       return;
     }
-    // API call to set password
+
     try {
       const deviceId = await DeviceManager.getDeviceId();
+      console.log('Device ID for setting password:', deviceId);
       const response = await api.setPaymentPassword(deviceId, password, newConfirmPassword);
       
-      console.log('API Response:', response); // 调试信息
-
       if (response.status === 'success') {
-        console.log('Password set successfully'); // 调试信息
-        console.log('Previous Screen:', route.params.previousScreen); // 添加日志
-
-        // 根据用户之前的选择进行导航
-        if (route.params.previousScreen === 'ImportWallet') {
-          console.log('Navigating to ImportPrivateKey'); // 添加日志
-          navigation.navigate('ImportPrivateKey', { deviceId, purpose: walletType }); // 导航到导入私钥页面
+        console.log('Password set successfully');
+        // 更新密码状态
+        await DeviceManager.setPaymentPasswordStatus(true);
+        
+        // 检查是否有onSuccess回调
+        if (route.params?.onSuccess) {
+          route.params.onSuccess();
         } else {
-          console.log('Navigating to SelectChain'); // 添加日志
-          navigation.navigate('SelectChain', { deviceId, purpose: walletType }); // 导航到选择链页面
+          // 如果没有回调，则使用默认导航逻辑
+          const { previousScreen, fromOnboarding } = route.params;
+          
+          // 根据来源页面和目的设置正确的导航参数
+          const navigationParams = {
+            purpose: previousScreen === 'ImportWallet' ? 'import' : 'create',
+            deviceId,
+            fromOnboarding: fromOnboarding || false
+          };
+
+          // 导航到SelectChain页面
+          navigation.navigate('SelectChain', navigationParams);
         }
       } else {
         setError('Failed to set payment password');
+        Alert.alert('Error', 'Failed to set payment password');
       }
     } catch (error) {
-      console.error('Error setting password:', error); // 调试信息
+      console.error('Error setting password:', error);
       setError('Failed to set payment password');
+      Alert.alert('Error', 'Failed to set payment password');
     }
   };
 
