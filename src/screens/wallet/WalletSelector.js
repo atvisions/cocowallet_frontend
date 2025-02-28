@@ -146,7 +146,7 @@ export default function WalletSelector({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'right', 'left']}>
         <Header 
           title="Select Wallet"
           onBack={() => navigation.goBack()}

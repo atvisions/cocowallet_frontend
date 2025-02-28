@@ -8,11 +8,15 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { DeviceManager } from './src/utils/device';
 import { api } from './src/services/api';
 import * as Font from 'expo-font';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, StatusBar, Platform } from 'react-native';
+import { useCallback } from 'react';
+import { useNavigationContainerRef } from '@react-navigation/native';
+import * as SystemUI from 'expo-system-ui';
+import * as NavigationBar from 'expo-navigation-bar';
 
 // 导入页面组件
 import MainTabs from './src/navigation/MainTabs';
-import SettingsScreen from './src/screens/settings/SettingsScreen';
+import SettingsScreen from './src/screens/tabs/SettingsScreen';
 import Onboarding from './src/screens/onboarding/Onboarding';
 import RenameWallet from './src/screens/wallet/RenameWallet';
 import SetPaymentPassword from './src/screens/auth/SetPaymentPassword';
@@ -25,6 +29,10 @@ import ShowMnemonic from './src/screens/wallet/ShowMnemonic';
 import VerifyMnemonic from './src/screens/wallet/VerifyMnemonic';
 import ImportWallet from './src/screens/wallet/ImportWallet';
 import LoadingWallet from './src/screens/wallet/LoadingWallet';
+import ReceiveScreen from './src/screens/wallet/ReceiveScreen';
+import SendScreen from './src/screens/wallet/SendScreen';
+import SendConfirmationScreen from './src/screens/wallet/SendConfirmationScreen';
+import HistoryScreen from './src/screens/tabs/HistoryScreen';
 
 const Stack = createStackNavigator();
 const RootStack = createStackNavigator();
@@ -38,6 +46,10 @@ function MainStack() {
       <Stack.Screen name="ShowPrivateKey" component={ShowPrivateKey} />
       <Stack.Screen name="PrivateKeyDisplay" component={PrivateKeyDisplay} />
       <Stack.Screen name="ChangePaymentPassword" component={ChangePaymentPassword} />
+      <Stack.Screen name="ReceiveScreen" component={ReceiveScreen} />
+      <Stack.Screen name="SendScreen" component={SendScreen} />
+      <Stack.Screen name="SendConfirmation" component={SendConfirmationScreen} />
+      <Stack.Screen name="HistoryScreen" component={HistoryScreen} />
     </Stack.Navigator>
   );
 }
@@ -54,6 +66,7 @@ function PasswordVerificationStack() {
         })}
       />
       <Stack.Screen name="PrivateKeyDisplay" component={PrivateKeyDisplay} />
+      <Stack.Screen name="LoadingWallet" component={LoadingWallet} />
     </Stack.Navigator>
   );
 }
@@ -96,21 +109,12 @@ function AppContent() {
         }
         break;
       } catch (error) {
-        console.error('Error checking initial route:', {
-          message: error.message,
-          status: error.status,
-          attempt: 4 - retries,
-          remainingRetries: retries - 1
-        });
-
+        console.error('Error checking initial route:', error);
         retries--;
-        
         if (retries > 0) {
-          console.log(`Retrying in ${delay}ms...`);
           await new Promise(resolve => setTimeout(resolve, delay));
-          delay *= 2; // 指数退避
+          delay *= 2;
         } else {
-          console.log('All retries exhausted, falling back to onboarding...');
           setInitialRoute('Onboarding');
         }
       } finally {
@@ -119,49 +123,59 @@ function AppContent() {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || !initialRoute) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#0000ff" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#171C32' }}>
+        <ActivityIndicator size="large" color="#3B82F6" />
       </View>
     );
   }
 
-  if (!initialRoute) {
-    return null;
-  }
-
   return (
-    <NavigationContainer>
-      <RootStack.Navigator 
-        screenOptions={{ 
-          headerShown: false,
-          presentation: 'modal' 
-        }}
-        initialRouteName={initialRoute}
-      >
+    <RootStack.Navigator screenOptions={{
+      headerShown: false,
+      cardStyle: { backgroundColor: '#171C32' },
+      cardStyleInterpolator: ({ current: { progress } }) => ({
+        cardStyle: {
+          opacity: progress,
+        },
+      }),
+      presentation: 'card'
+    }}>
+      {initialRoute === 'Onboarding' ? (
         <RootStack.Screen name="Onboarding" component={Onboarding} />
-        <RootStack.Screen name="MainStack" component={MainStack} />
-        <RootStack.Screen name="SetPaymentPassword" component={SetPaymentPassword} />
-        <RootStack.Screen name="SelectChain" component={SelectChain} />
-        <RootStack.Screen name="ShowMnemonic" component={ShowMnemonic} />
-        <RootStack.Screen name="VerifyMnemonic" component={VerifyMnemonic} />
-        <RootStack.Screen name="ImportWallet" component={ImportWallet} />
-        <RootStack.Screen name="LoadingWallet" component={LoadingWallet} />
-        <RootStack.Screen 
-          name="PasswordVerification" 
-          component={PasswordVerificationStack}
-          options={{
-            presentation: 'modal',
-          }}
-        />
-      </RootStack.Navigator>
-    </NavigationContainer>
+      ) : (
+        <>
+          <RootStack.Screen name="MainStack" component={MainStack} />
+          <RootStack.Screen 
+            name="PasswordVerification" 
+            component={PasswordVerificationStack}
+            options={{ presentation: 'modal' }}
+          />
+        </>
+      )}
+    </RootStack.Navigator>
   );
 }
 
 // 主 App 组件
 export default function App() {
+  useEffect(() => {
+    // 设置系统UI颜色
+    SystemUI.setBackgroundColorAsync('#171C32');
+    
+    if (Platform.OS === 'android') {
+      // 设置 Android 状态栏颜色
+      StatusBar.setBackgroundColor('#171C32');
+      StatusBar.setBarStyle('light-content');
+      
+      // 设置 Android 系统导航栏颜色
+      NavigationBar.setBackgroundColorAsync('#171C32');
+      NavigationBar.setButtonStyleAsync('light');
+      NavigationBar.setBorderColorAsync('#171C32');
+    }
+  }, []);
+
   const [fontsLoaded, setFontsLoaded] = useState(false);
 
   useEffect(() => {
@@ -186,10 +200,33 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider>
-      <WalletProvider>
-        <AppContent />
-      </WalletProvider>
+    <SafeAreaProvider style={{ backgroundColor: '#171C32' }}>
+      <StatusBar 
+        barStyle="light-content" 
+        backgroundColor="#171C32"
+        translucent={Platform.OS === 'android'}
+      />
+      <View style={{ 
+        flex: 1, 
+        backgroundColor: '#171C32',
+      }}>
+        <WalletProvider>
+          <NavigationContainer
+            theme={{
+              colors: {
+                background: '#171C32',
+                card: '#171C32',
+                text: '#FFFFFF',
+                border: '#243447',
+                primary: '#3B82F6',
+              },
+              dark: true,
+            }}
+          >
+            <AppContent />
+          </NavigationContainer>
+        </WalletProvider>
+      </View>
     </SafeAreaProvider>
   );
 }

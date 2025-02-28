@@ -28,8 +28,9 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#171C32"
       },
-      "softwareKeyboardLayoutMode": "pan",
       "navigationBarColor": "#171C32",
+      "softwareKeyboardLayoutMode": "pan",
+      "allowBackup": true,
       "statusBarColor": "#171C32",
       "navigationBarHidden": true
     },

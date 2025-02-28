@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { View, Text, StyleSheet, Platform, SafeAreaView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Platform, TouchableOpacity, StatusBar } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated from 'react-native/Libraries/Animated/Animated';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import WalletScreen from '../screens/tabs/WalletScreen';
-import NFTScreen from '../screens/tabs/NFTScreen';
 import SwapScreen from '../screens/tabs/SwapScreen';
-import HistoryScreen from '../screens/tabs/HistoryScreen';
-import DiscoverScreen from '../screens/tabs/DiscoverScreen';
+import SettingsScreen from '../screens/tabs/SettingsScreen';
 import WalletSelector from '../screens/wallet/WalletSelector';
 import EditWallet from '../screens/wallet/EditWallet';
 import ShowPrivateKey from '../screens/wallet/ShowPrivateKey';
@@ -18,6 +17,10 @@ import RenameWallet from '../screens/wallet/RenameWallet';
 import DeleteWallet from '../screens/wallet/DeleteWallet';
 import PaymentPasswordScreen from '../screens/wallet/PaymentPasswordScreen';
 import SelectChain from '../screens/wallet/SelectChain';
+import ShowMnemonic from '../screens/wallet/ShowMnemonic';
+import ImportWallet from '../screens/wallet/ImportWallet';
+import VerifyMnemonic from '../screens/wallet/VerifyMnemonic';
+import LoadingWallet from '../screens/wallet/LoadingWallet';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -28,7 +31,6 @@ function CustomTabBar({ state, descriptors, navigation }) {
   ).current;
 
   const handlePress = (index, onPress) => {
-    console.log('Tab pressed:', state.routes[index].name);
     Animated.sequence([
       Animated.timing(animatedValues[index], {
         toValue: 0.8,
@@ -46,16 +48,24 @@ function CustomTabBar({ state, descriptors, navigation }) {
   };
 
   return (
-    <SafeAreaView style={{ backgroundColor: '#171C32' }}>
+    <SafeAreaView style={{ backgroundColor: '#171C32' }} edges={['bottom']}>
       <View style={styles.tabBar}>
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
+          const label =
+            options.tabBarLabel !== undefined
+              ? options.tabBarLabel
+              : options.title !== undefined
+              ? options.title
+              : route.name;
+
           const isFocused = state.index === index;
 
           const onPress = () => {
             const event = navigation.emit({
               type: 'tabPress',
               target: route.key,
+              canPreventDefault: true,
             });
 
             if (!isFocused && !event.defaultPrevented) {
@@ -68,37 +78,43 @@ function CustomTabBar({ state, descriptors, navigation }) {
             case 'Wallet':
               iconName = isFocused ? 'wallet' : 'wallet-outline';
               break;
-            case 'NFT':
-              iconName = isFocused ? 'grid' : 'grid-outline';
-              break;
+
             case 'Swap':
               iconName = isFocused ? 'swap-horizontal' : 'swap-horizontal-outline';
               break;
-            case 'History':
-              iconName = isFocused ? 'time' : 'time-outline';
-              break;
-            case 'Discover':
-              iconName = isFocused ? 'compass' : 'compass-outline';
+
+            case 'Settings':
+              iconName = isFocused ? 'settings' : 'settings-outline';
               break;
           }
 
           return (
-            <Animated.View 
-              key={route.key} 
+            <Animated.View
+              key={route.key}
               style={[
                 styles.tabItem,
-                { transform: [{ scale: animatedValues[index] }] }
+                {
+                  transform: [{ scale: animatedValues[index] }],
+                },
               ]}
             >
               <TouchableOpacity
-                onPress={() => handlePress(index, onPress)}
                 style={styles.tabButton}
+                onPress={() => handlePress(index, onPress)}
               >
                 <Ionicons
                   name={iconName}
-                  size={26}
-                  color={isFocused ? '#1FC595' : '#8E8E8E'}
+                  size={24}
+                  color={isFocused ? '#3B82F6' : '#8E8E8E'}
                 />
+                <Text
+                  style={[
+                    styles.tabLabel,
+                    { color: isFocused ? '#3B82F6' : '#8E8E8E' },
+                  ]}
+                >
+                  {label}
+                </Text>
               </TouchableOpacity>
             </Animated.View>
           );
@@ -114,13 +130,66 @@ function TabScreens() {
       tabBar={props => <CustomTabBar {...props} />}
       screenOptions={{
         headerShown: false,
+        tabBarStyle: {
+          backgroundColor: '#171C32',
+          borderTopWidth: 0,
+          elevation: 0,
+          shadowOpacity: 0,
+          height: Platform.OS === 'ios' ? 80 : 60,
+          borderTopColor: 'transparent',
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+        },
+        tabBarBackground: () => (
+          <View style={{ 
+            flex: 1, 
+            backgroundColor: '#171C32',
+            borderTopWidth: 0,
+          }} />
+        ),
       }}
     >
-      <Tab.Screen name="Wallet" component={WalletScreen} />
-      <Tab.Screen name="NFT" component={NFTScreen} />
-      <Tab.Screen name="Swap" component={SwapScreen} />
-      <Tab.Screen name="History" component={HistoryScreen} />
-      <Tab.Screen name="Discover" component={DiscoverScreen} />
+      <Tab.Screen 
+        name="Wallet" 
+        component={WalletScreen}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <Ionicons 
+              name={focused ? "wallet" : "wallet-outline"} 
+              size={24} 
+              color={focused ? "#3B82F6" : "#8E8E8E"} 
+            />
+          ),
+        }}
+      />
+      <Tab.Screen 
+        name="Swap" 
+        component={SwapScreen}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <Ionicons 
+              name={focused ? "swap-horizontal" : "swap-horizontal-outline"} 
+              size={24} 
+              color={focused ? "#3B82F6" : "#8E8E8E"} 
+            />
+          ),
+        }}
+      />
+      <Tab.Screen 
+        name="Settings" 
+        component={SettingsScreen}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <Ionicons 
+              name={focused ? "settings" : "settings-outline"} 
+              size={24} 
+              color={focused ? "#3B82F6" : "#8E8E8E"} 
+            />
+          ),
+        }}
+      />
     </Tab.Navigator>
   );
 }
@@ -131,6 +200,12 @@ const MainStack = () => {
       screenOptions={{
         headerShown: false,
         cardStyle: { backgroundColor: '#171C32' },
+        cardStyleInterpolator: ({ current: { progress } }) => ({
+          cardStyle: {
+            opacity: progress,
+          },
+        }),
+        presentation: 'card'
       }}
       initialRouteName="Tabs"
     >
@@ -142,6 +217,11 @@ const MainStack = () => {
       <Stack.Screen name="RenameWallet" component={RenameWallet} />
       <Stack.Screen name="DeleteWallet" component={DeleteWallet} />
       <Stack.Screen name="PaymentPasswordScreen" component={PaymentPasswordScreen} />
+      <Stack.Screen name="SelectChain" component={SelectChain} />
+      <Stack.Screen name="ShowMnemonic" component={ShowMnemonic} />
+      <Stack.Screen name="ImportWallet" component={ImportWallet} />
+      <Stack.Screen name="VerifyMnemonic" component={VerifyMnemonic} />
+      <Stack.Screen name="LoadingWallet" component={LoadingWallet} />
     </Stack.Navigator>
   );
 };
@@ -151,11 +231,12 @@ export default MainStack;
 const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: '#272C52',
-    paddingBottom: Platform.OS === 'ios' ? 20 : 10,
-    paddingTop: 10,
-    height: Platform.OS === 'ios' ? 70 : 60,
+    backgroundColor: '#171C32',
+    paddingBottom: Platform.OS === 'ios' ? 20 : 8,
+    paddingTop: 8,
     borderTopWidth: 0,
+    elevation: 0,
+    shadowOpacity: 0,
   },
   tabItem: {
     flex: 1,
@@ -165,6 +246,9 @@ const styles = StyleSheet.create({
   tabButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 8,
+  },
+  tabLabel: {
+    fontSize: 12,
+    marginTop: 4,
   },
 });

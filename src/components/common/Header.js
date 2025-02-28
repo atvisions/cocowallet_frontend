@@ -15,6 +15,7 @@ export default function Header({ title, onBack, rightComponent }) {
   
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" backgroundColor="#171C32" />
       <View style={styles.content}>
         {onBack && (
           <TouchableOpacity 
@@ -40,10 +41,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#171C32',
   },
   content: {
-    height: 44,  // 进一步减小高度
+    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
+    paddingVertical: 8,
   },
   backButton: {
     width: 40,

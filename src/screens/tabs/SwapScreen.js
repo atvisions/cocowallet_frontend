@@ -8,22 +8,31 @@ import {
   Image,
   Modal,
   FlatList,
-  SafeAreaView
+  ActivityIndicator,
+  ScrollView,
+  StatusBar,
+  RefreshControl
 } from 'react-native';
-import Icon from 'react-native-vector-icons/Ionicons';
-import Header from '../../components/common/Header';
-import { BASE_URL } from '../../config/constants';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../services/api';
 import { DeviceManager } from '../../utils/device';
 import { useWallet } from '../../contexts/WalletContext';
+import Header from '../../components/common/Header';
+import TokenSelectorModal from '../../screens/wallet/TokenSelectorModal';
 
 export default function SwapScreen({ navigation }) {
   const { selectedWallet } = useWallet();
   const [tokens, setTokens] = useState([]);
+  const [recommendedTokens, setRecommendedTokens] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [fromAmount, setFromAmount] = useState('');
   const [toAmount, setToAmount] = useState('');
   const [exchangeRate, setExchangeRate] = useState(0);
+  const [isQuoteLoading, setIsQuoteLoading] = useState(false);
+  const [isTokenSelectorVisible, setIsTokenSelectorVisible] = useState(false);
+  const [selectingTokenType, setSelectingTokenType] = useState('from');
 
   const [fromToken, setFromToken] = useState({
     symbol: 'SOL',
@@ -39,12 +48,10 @@ export default function SwapScreen({ navigation }) {
     address: 'EAfDXdgSAAkLXbV5L7vaygHrxfJs4Y4Yu6hbP7raBZVT'
   });
 
-  const [showTokenSelector, setShowTokenSelector] = useState(false);
-  const [selectingTokenType, setSelectingTokenType] = useState('from'); // 'from' 或 'to'
-
   useEffect(() => {
     if (selectedWallet) {
       loadTokens();
+      loadRecommendedTokens();
     }
   }, [selectedWallet?.id]);
 
@@ -55,32 +62,10 @@ export default function SwapScreen({ navigation }) {
       if (!selectedWallet) return;
 
       const chain = selectedWallet.chain.toLowerCase();
-      const chainPath = chain === 'sol' ? 'solana' : 'evm';
-      
-      const response = await api.getTokens(deviceId, chain, selectedWallet.id);
+      const response = await api.getWalletTokens(deviceId, selectedWallet.id, chain);
       
       if (response?.data?.tokens) {
         setTokens(response.data.tokens);
-        
-        // 更新 SOL 和 USDC 代币信息
-        const solToken = response.data.tokens.find(t => t.symbol === 'SOL');
-        const usdcToken = response.data.tokens.find(t => t.symbol === 'USDC');
-
-        if (solToken) {
-          setFromToken(prev => ({
-            ...prev,
-            balance: solToken.balance_formatted,
-            icon: solToken.logo
-          }));
-        }
-
-        if (usdcToken) {
-          setToToken(prev => ({
-            ...prev,
-            balance: usdcToken.balance_formatted,
-            icon: usdcToken.logo
-          }));
-        }
       }
     } catch (error) {
       console.error('Failed to load tokens:', error);
@@ -89,242 +74,184 @@ export default function SwapScreen({ navigation }) {
     }
   };
 
-  // 获取兑换报价
-  const fetchSwapQuote = async (amount) => {
-    if (!amount || parseFloat(amount) === 0) {
-      setToAmount('');
-      return;
-    }
-
+  const loadRecommendedTokens = async () => {
     try {
       const deviceId = await DeviceManager.getDeviceId();
-      const response = await fetch(
-        `${BASE_URL}/api/v1/solana/wallets/${selectedWallet.id}/swap/quote?` +
-        `device_id=${deviceId}&` +
-        `from_token=${fromToken.address}&` +
-        `to_token=${toToken.address}&` +
-        `amount=${amount}&` +
-        `slippage=0.5`
-      );
+      if (!selectedWallet) return;
+
+      const chain = selectedWallet.chain.toLowerCase();
+      const response = await api.get(`/api/v1/${chain}/wallets/recommended-tokens/?chain=${chain.toUpperCase()}`);
       
-      const data = await response.json();
-      if (data.success) {
-        setToAmount(data.toAmount);
-        const rate = parseFloat(data.toAmount) / parseFloat(amount);
-        setExchangeRate(rate);
+      if (response?.data) {
+        setRecommendedTokens(response.data);
       }
     } catch (error) {
-      console.error('获取报价失败:', error);
+      console.error('Failed to load recommended tokens:', error);
     }
   };
 
-  const handleFromAmountChange = (value) => {
-    setFromAmount(value);
-    fetchSwapQuote(value);
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    Promise.all([
+      loadTokens(),
+      loadRecommendedTokens()
+    ]).finally(() => {
+      setIsRefreshing(false);
+    });
   };
 
-  const handleSwapTokens = () => {
-    const temp = fromToken;
-    setFromToken(toToken);
-    setToToken(temp);
-    setFromAmount('');
-    setToAmount('');
-  };
-
-  const handleTokenSelect = (token) => {
-    if (selectingTokenType === 'from') {
-      // 如果选择的是当前to token，则交换
-      if (token.symbol === toToken.symbol) {
-        handleSwapTokens();
-      } else {
-        setFromToken({
-          symbol: token.symbol,
-          balance: token.balance_formatted,
-          icon: token.logo,
-          address: token.address
-        });
-      }
-    } else {
-      // 如果选择的是当前from token，则交换
-      if (token.symbol === fromToken.symbol) {
-        handleSwapTokens();
-      } else {
-        setToToken({
-          symbol: token.symbol,
-          balance: token.balance_formatted,
-          icon: token.logo,
-          address: token.address
-        });
-      }
-    }
-    setShowTokenSelector(false);
-    setFromAmount('');
-    setToAmount('');
-  };
-
-  const renderTokenItem = ({ item }) => (
+  const renderRecommendedToken = ({ item }) => (
     <TouchableOpacity 
-      style={styles.tokenListItem}
+      style={styles.recommendedTokenItem}
       onPress={() => handleTokenSelect(item)}
     >
-      <View style={styles.tokenListItemLeft}>
-        <Image 
-          source={{ uri: item.logo }} 
-          style={styles.tokenListIcon} 
-        />
-        <View>
-          <Text style={styles.tokenListSymbol}>{item.symbol}</Text>
-          <Text style={styles.tokenListName}>{item.name}</Text>
-        </View>
+      <Image 
+        source={{ uri: item.logo }} 
+        style={styles.recommendedTokenIcon} 
+      />
+      <View style={styles.recommendedTokenInfo}>
+        <Text style={styles.recommendedTokenSymbol}>{item.symbol}</Text>
+        <Text style={styles.recommendedTokenPrice}>${parseFloat(item.price).toFixed(2)}</Text>
+        <Text style={[
+          styles.recommendedTokenChange,
+          { color: item.price_change_24h >= 0 ? '#1FC595' : '#FF4B55' }
+        ]}>
+          {item.price_change_24h >= 0 ? '+' : ''}{item.price_change_24h}%
+        </Text>
       </View>
-      <Text style={styles.tokenListBalance}>
-        {parseFloat(item.balance_formatted).toFixed(4)}
-      </Text>
     </TouchableOpacity>
   );
 
-  const TokenSelectorModal = () => (
-    <Modal
-      visible={showTokenSelector}
-      animationType="slide"
-      transparent={true}
-    >
-      <View style={styles.modalContainer}>
-        <SafeAreaView style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>选择代币</Text>
-            <TouchableOpacity 
-              onPress={() => setShowTokenSelector(false)}
-              style={styles.closeButton}
-            >
-              <Icon name="close" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-          
-          <FlatList
-            data={tokens}
-            renderItem={renderTokenItem}
-            keyExtractor={item => item.address}
-            style={styles.tokenList}
-          />
-        </SafeAreaView>
-      </View>
-    </Modal>
-  );
+  const handleTokenSelect = (token) => {
+    if (selectingTokenType === 'from') {
+      setFromToken(token);
+    } else {
+      setToToken(token);
+    }
+    setIsTokenSelectorVisible(false);
+  };
+
+  const handleSwap = () => {
+    // TODO: Implement swap logic
+  };
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#171C32" />
       <Header 
         title="Swap" 
-        rightIcon="settings-outline"
-        onRightPress={() => navigation.navigate('Settings')}
       />
-      
-      {/* From Section */}
-      <View style={styles.inputSection}>
-        <View style={styles.inputHeader}>
-          <Text style={styles.sectionLabel}>You pay</Text>
-          <Text style={styles.balanceText}>
-            Balance: {parseFloat(fromToken.balance).toFixed(4)}
-          </Text>
-        </View>
-        
-        <View style={styles.inputContent}>
-          <TouchableOpacity 
-            style={styles.tokenSelector}
-            onPress={() => {
-              setSelectingTokenType('from');
-              setShowTokenSelector(true);
-            }}
-          >
-            <Image 
-              source={{ uri: fromToken.icon }} 
-              style={styles.tokenIcon} 
-            />
-            <Text style={styles.tokenSymbol}>{fromToken.symbol}</Text>
-            <Icon name="chevron-down" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-
-          <TextInput
-            style={styles.amountInput}
-            value={fromAmount}
-            onChangeText={handleFromAmountChange}
-            placeholder="0.0"
-            placeholderTextColor="#666"
-            keyboardType="decimal-pad"
+      <ScrollView 
+        style={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor="#1FC595"
+            colors={['#1FC595']}
           />
-        </View>
-      </View>
-
-      {/* Swap Button */}
-      <View style={styles.swapButtonContainer}>
-        <TouchableOpacity 
-          style={styles.swapButton} 
-          onPress={handleSwapTokens}
-        >
-          <Icon name="swap-vertical" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
-
-      {/* To Section */}
-      <View style={styles.inputSection}>
-        <View style={styles.inputHeader}>
-          <Text style={styles.sectionLabel}>You receive</Text>
-          <Text style={styles.balanceText}>
-            Balance: {parseFloat(toToken.balance).toFixed(4)}
-          </Text>
-        </View>
-        
-        <View style={styles.inputContent}>
-          <TouchableOpacity 
-            style={styles.tokenSelector}
-            onPress={() => {
-              setSelectingTokenType('to');
-              setShowTokenSelector(true);
-            }}
-          >
-            <Image 
-              source={{ uri: toToken.icon }} 
-              style={styles.tokenIcon} 
-            />
-            <Text style={styles.tokenSymbol}>{toToken.symbol}</Text>
-            <Icon name="chevron-down" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-
-          <TextInput
-            style={styles.amountInput}
-            value={toAmount}
-            editable={false}
-            placeholder="0.0"
-            placeholderTextColor="#666"
-          />
-        </View>
-      </View>
-
-      {/* Exchange Rate */}
-      <View style={styles.rateCard}>
-        <View style={styles.rateRow}>
-          <Text style={styles.rateLabel}>Exchange Rate</Text>
-          <Text style={styles.rateValue}>
-            1 {fromToken.symbol} = {exchangeRate.toFixed(6)} {toToken.symbol}
-          </Text>
-        </View>
-      </View>
-
-      {/* Swap Button */}
-      <TouchableOpacity 
-        style={[
-          styles.submitButton,
-          (!fromAmount || isLoading) && styles.submitButtonDisabled
-        ]}
-        disabled={!fromAmount || isLoading}
+        }
       >
-        <Text style={styles.submitButtonText}>
-          {isLoading ? 'Getting Quote...' : 'Swap'}
-        </Text>
-      </TouchableOpacity>
+        {/* Swap Card */}
+        <View style={styles.swapCard}>
+          {/* From Token */}
+          <View style={styles.tokenSection}>
+            <Text style={styles.sectionLabel}>From</Text>
+            <TouchableOpacity 
+              style={styles.tokenSelector}
+              onPress={() => {
+                setSelectingTokenType('from');
+                setIsTokenSelectorVisible(true);
+              }}>
+              <Image source={{ uri: fromToken.icon || 'https://example.com/default-token.png' }} style={styles.tokenIcon} />
+              <Text style={styles.tokenSymbol}>{fromToken.symbol}</Text>
+              <Ionicons name="chevron-down" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TextInput
+              style={styles.amountInput}
+              value={fromAmount}
+              onChangeText={setFromAmount}
+              placeholder="0.00"
+              placeholderTextColor="#8E8E8E"
+              keyboardType="decimal-pad"
+            />
+          </View>
 
-      <TokenSelectorModal />
+          {/* Swap Button */}
+          <TouchableOpacity style={styles.swapButton} onPress={() => {
+            const temp = fromToken;
+            setFromToken(toToken);
+            setToToken(temp);
+          }}>
+            <Ionicons name="swap-vertical" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+
+          {/* To Token */}
+          <View style={styles.tokenSection}>
+            <Text style={styles.sectionLabel}>To</Text>
+            <TouchableOpacity 
+              style={styles.tokenSelector}
+              onPress={() => {
+                setSelectingTokenType('to');
+                setIsTokenSelectorVisible(true);
+              }}>
+              <Image source={{ uri: toToken.icon || 'https://example.com/default-token.png' }} style={styles.tokenIcon} />
+              <Text style={styles.tokenSymbol}>{toToken.symbol}</Text>
+              <Ionicons name="chevron-down" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TextInput
+              style={styles.amountInput}
+              value={toAmount}
+              onChangeText={setToAmount}
+              placeholder="0.00"
+              placeholderTextColor="#8E8E8E"
+              keyboardType="decimal-pad"
+              editable={false}
+            />
+          </View>
+
+          {/* Exchange Rate */}
+          {exchangeRate > 0 && (
+            <View style={styles.rateContainer}>
+              <Text style={styles.rateText}>
+                1 {fromToken.symbol} = {exchangeRate} {toToken.symbol}
+              </Text>
+            </View>
+          )}
+
+          {/* Swap Action Button */}
+          <TouchableOpacity 
+            style={[styles.actionButton, (!fromAmount || isQuoteLoading) && styles.actionButtonDisabled]}
+            onPress={handleSwap}
+            disabled={!fromAmount || isQuoteLoading}
+          >
+            <Text style={styles.actionButtonText}>
+              {isQuoteLoading ? 'Calculating...' : 'Swap'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        {/* Recommended Tokens Section */}
+        <View style={styles.recommendedSection}>
+          <Text style={styles.recommendedTitle}>推荐代币</Text>
+          <FlatList
+            data={recommendedTokens}
+            renderItem={renderRecommendedToken}
+            keyExtractor={item => item.address}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.recommendedList}
+          />
+        </View>
+      </ScrollView>
+
+      <TokenSelectorModal
+        visible={isTokenSelectorVisible}
+        onClose={() => setIsTokenSelectorVisible(false)}
+        onSelect={handleTokenSelect}
+        selectedToken={selectingTokenType === 'from' ? fromToken : toToken}
+        tokens={tokens}
+        isLoading={isLoading}
+      />
     </View>
   );
 }
@@ -332,183 +259,142 @@ export default function SwapScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#171C32',
+    backgroundColor: '#171C32'
   },
-  inputSection: {
-    backgroundColor: '#1E2338',
+  content: {
+    flex: 1,
+    paddingTop: 16,
+    paddingHorizontal: 16
+  },
+  swapCard: {
+    backgroundColor: '#1B2C41',
     borderRadius: 16,
     padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 5,
+    marginBottom: 24
   },
-  inputHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+  tokenSection: {
+    marginBottom: 16
   },
   sectionLabel: {
     color: '#8E8E8E',
     fontSize: 14,
-  },
-  balanceText: {
-    color: '#8E8E8E',
-    fontSize: 14,
-  },
-  inputContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    marginBottom: 8
   },
   tokenSelector: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#252A43',
+    backgroundColor: '#272C52',
+    borderRadius: 12,
     padding: 12,
-    borderRadius: 8,
+    marginBottom: 8
   },
   tokenIcon: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    marginRight: 8,
+    marginRight: 8
   },
   tokenSymbol: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
-    marginRight: 8,
+    flex: 1
   },
   amountInput: {
+    backgroundColor: '#272C52',
+    borderRadius: 12,
+    padding: 12,
     color: '#FFFFFF',
     fontSize: 24,
-    fontWeight: '600',
-    textAlign: 'right',
-    flex: 1,
-    marginLeft: 12,
-  },
-  swapButtonContainer: {
-    position: 'relative',
-    height: 0,
-    alignItems: 'center',
-    zIndex: 1,
+    fontWeight: '600'
   },
   swapButton: {
+    backgroundColor: '#272C52',
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#3B82F6',
-    justifyContent: 'center',
     alignItems: 'center',
-    position: 'absolute',
-    top: -22.5,
-    borderWidth: 4,
-    borderColor: '#171C32',
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginVertical: 8
+  },
+  rateContainer: {
+    backgroundColor: '#272C52',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 16,
+    alignItems: 'center'
+  },
+  rateText: {
+    color: '#8E8E8E',
+    fontSize: 14
+  },
+  actionButton: {
+    backgroundColor: '#1FC595',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 24
+  },
+  actionButtonDisabled: {
+    opacity: 0.5
+  },
+  actionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold'
   },
   rateCard: {
-    backgroundColor: '#1E2338',
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 16,
+    backgroundColor: '#1B2C41',
+    borderRadius: 16,
+    padding: 12,
     marginTop: 16,
+    marginBottom: 16,
+    alignItems: 'center'
   },
-  rateRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  rateLabel: {
-    color: '#8E8E8E',
-    fontSize: 14,
-  },
-  rateValue: {
-    color: '#FFFFFF',
-    fontSize: 14,
-  },
-  submitButton: {
-    backgroundColor: '#3B82F6',
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 16,
+  recommendedSection: {
     marginTop: 24,
   },
-  submitButtonText: {
-    color: '#FFFFFF',
+  recommendedTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  submitButtonDisabled: {
-    opacity: 0.5,
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#171C32',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2A3154',
-  },
-  modalTitle: {
+    fontWeight: '600',
     color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  closeButton: {
-    padding: 4,
-  },
-  tokenList: {
+    marginBottom: 16,
     paddingHorizontal: 16,
   },
-  tokenListItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  recommendedList: {
+    paddingHorizontal: 8,
+  },
+  recommendedTokenItem: {
+    backgroundColor: '#1B2C41',
+    borderRadius: 12,
+    padding: 12,
+    marginHorizontal: 8,
+    width: 120,
     alignItems: 'center',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2A3154',
   },
-  tokenListItemLeft: {
-    flexDirection: 'row',
+  recommendedTokenIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginBottom: 8,
+  },
+  recommendedTokenInfo: {
     alignItems: 'center',
   },
-  tokenListIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    marginRight: 12,
-  },
-  tokenListSymbol: {
+  recommendedTokenSymbol: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  tokenListName: {
-    color: '#8E8E8E',
     fontSize: 14,
-    marginTop: 2,
+    fontWeight: '600',
+    marginBottom: 4,
   },
-  tokenListBalance: {
-    color: '#FFFFFF',
-    fontSize: 16,
+  recommendedTokenPrice: {
+    color: '#8E8E8E',
+    fontSize: 12,
+    marginBottom: 4,
   },
-}); 
+  recommendedTokenChange: {
+    fontSize: 12,
+    fontWeight: '500'
+  }
+})

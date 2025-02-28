@@ -9,6 +9,7 @@ import {
   Platform,
   Pressable,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../services/api';
 import { DeviceManager } from '../../utils/device';
@@ -150,30 +151,30 @@ const styles = StyleSheet.create({
     backgroundColor: '#171C32',
   },
   walletInfoContainer: {
-    marginTop: 60,
+    marginTop: 24,
     marginHorizontal: 16,
     position: 'relative',
   },
   walletAvatarContainer: {
     position: 'absolute',
-    top: -40,
+    top: -24,
     left: 0,
     right: 0,
     alignItems: 'center',
     zIndex: 1,
   },
   walletAvatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 4,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 3,
     borderColor: '#171C32',
   },
   walletInfo: {
     backgroundColor: '#272C52',
     borderRadius: 16,
-    padding: 20,
-    paddingTop: 50,
+    padding: 16,
+    paddingTop: 40,
     alignItems: 'center',
   },
   walletDetails: {

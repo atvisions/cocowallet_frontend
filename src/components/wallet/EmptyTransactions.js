@@ -44,4 +44,4 @@ const styles = StyleSheet.create({
     color: '#8E8E8E',
     textAlign: 'center',
   },
-}); 
+});

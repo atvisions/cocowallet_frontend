@@ -182,7 +182,7 @@ export default function Onboarding({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'right', 'left']}>
       <FlatList
         ref={flatListRef}
         data={slides}

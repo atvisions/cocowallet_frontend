@@ -103,7 +103,10 @@ export default function HistoryScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.container} edges={['right', 'left']}>
-      <Header title="History" />
+      <Header 
+        title="History" 
+        onBack={() => navigation.goBack()}
+      />
 
       <FlatList
         data={transactions}
@@ -183,4 +186,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8E8E8E',
   },
-}); 
+});

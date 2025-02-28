@@ -274,38 +274,47 @@ export default function WalletScreen({ navigation }) {
   );
 
   const renderActionButtons = () => (
-    <View style={styles.actionButtonsContainer}>
-      <TouchableOpacity style={styles.actionButton}>
-        <LinearGradient
-          colors={['#1FC595', '#17A982']}
-          style={styles.actionButtonGradient}
+      <View style={styles.actionButtonsContainer}>
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('ReceiveScreen')}
         >
-          <Ionicons name="arrow-down" size={24} color="#FFFFFF" />
-        </LinearGradient>
-        <Text style={styles.actionButtonText}>Receive</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.actionButton}>
-        <LinearGradient
-          colors={['#FF4B55', '#E63F48']}
-          style={styles.actionButtonGradient}
+          <LinearGradient
+            colors={['#1FC595', '#17A982']}
+            style={styles.actionButtonGradient}
+          >
+            <Ionicons name="arrow-down" size={24} color="#FFFFFF" />
+          </LinearGradient>
+          <Text style={styles.actionButtonText}>Receive</Text>
+        </TouchableOpacity>
+  
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('SendScreen')}
         >
-          <Ionicons name="arrow-up" size={24} color="#FFFFFF" />
-        </LinearGradient>
-        <Text style={styles.actionButtonText}>Send</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.actionButton}>
-        <LinearGradient
-          colors={['#3B82F6', '#2563EB']}
-          style={styles.actionButtonGradient}
+          <LinearGradient
+            colors={['#FF4B55', '#E63F48']}
+            style={styles.actionButtonGradient}
+          >
+            <Ionicons name="arrow-up" size={24} color="#FFFFFF" />
+          </LinearGradient>
+          <Text style={styles.actionButtonText}>Send</Text>
+        </TouchableOpacity>
+  
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('HistoryScreen')}
         >
-          <Ionicons name="swap-horizontal" size={24} color="#FFFFFF" />
-        </LinearGradient>
-        <Text style={styles.actionButtonText}>Swap</Text>
-      </TouchableOpacity>
-    </View>
-  );
+          <LinearGradient
+            colors={['#3B82F6', '#2563EB']}
+            style={styles.actionButtonGradient}
+          >
+            <Ionicons name="time" size={24} color="#FFFFFF" />
+          </LinearGradient>
+          <Text style={styles.actionButtonText}>History</Text>
+        </TouchableOpacity>
+      </View>
+    );
 
   const handleTokenVisibilityChanged = () => {
     console.log('Token visibility changed, refreshing wallet data...');
@@ -475,12 +484,6 @@ export default function WalletScreen({ navigation }) {
             <TouchableOpacity style={styles.headerButton}>
               <Ionicons name="scan-outline" size={24} color="#FFFFFF" />
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.headerButton}
-              onPress={() => navigation.navigate('Settings')}
-            >
-              <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
           </View>
         </View>
 
@@ -521,8 +524,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    height: 44,
-    marginTop: Platform.OS === 'ios' ? 30 : 10,
+    paddingVertical: 12,
+    backgroundColor: '#171C32',
+    marginTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
   walletSelectorContainer: {
     flexDirection: 'row',

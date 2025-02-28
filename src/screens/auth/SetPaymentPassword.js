@@ -98,12 +98,10 @@ export default function SetPaymentPassword({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.headerContainer}>
-        <Header 
-          title="Set Payment Password"
-          onBack={() => navigation.goBack()}
-        />
-      </View>
+      <Header 
+        title="Set Payment Password"
+        onBack={() => navigation.goBack()}
+      />
       
       <View style={styles.mainContent}>
         <Text style={styles.title}>
@@ -145,9 +143,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#171C32',
   },
-  headerContainer: {
-    paddingTop: 20,
-  },
+
   mainContent: {
     flex: 1,
     padding: 24,

@@ -8,7 +8,7 @@ import {
   Animated,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { Ionicons } from '@expo/vector-icons';
 import Header from '../../components/common/Header';
 import PasswordDots from '../../components/common/PasswordDots';
@@ -186,10 +186,7 @@ export default function PaymentPasswordScreen({ route, navigation }) {
   };
 
   return (
-    <SafeAreaView 
-      style={styles.container}
-      edges={['top', 'right', 'left']}
-    >
+    <View style={styles.container}>
       <Header 
         title={title}
         onBack={() => navigation.goBack()}
@@ -221,7 +218,7 @@ export default function PaymentPasswordScreen({ route, navigation }) {
 
         {renderNumberPad()}
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -232,8 +229,10 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 24,
+    padding: 24,
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    paddingTop: 80,
   },
   description: {
     color: '#8E8E8E',
@@ -242,22 +241,26 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   numberPad: {
-    flex: 1,
-    justifyContent: 'flex-end',
+    width: '100%',
+    paddingHorizontal: 16,
     marginBottom: 40,
+    marginTop: 40,
+    alignItems: 'center',
   },
   row: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'center',
     marginBottom: 20,
+    width: '100%',
   },
   numberButton: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: '#272C52',
     justifyContent: 'center',
     alignItems: 'center',
+    marginHorizontal: 6,
   },
   emptyButton: {
     backgroundColor: 'transparent',

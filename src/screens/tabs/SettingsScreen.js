@@ -67,8 +67,7 @@ export default function SettingsScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container}>
       <Header 
-        title="Settings"
-        onBack={handleBack}
+        title="Settings" 
       />
       <ScrollView style={styles.content}>
         <View style={styles.section}>
@@ -175,4 +174,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 8,
   },
-}); 
+});

@@ -87,7 +87,7 @@ export default function ImportWallet({ navigation, route }) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'right', 'left']}>
       <Header 
         title="Import Wallet"
         onBack={() => navigation.goBack()}
