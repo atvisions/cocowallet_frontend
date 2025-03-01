@@ -56,14 +56,12 @@ export default function TokenListScreen({ navigation, route }) {
 
   const handleTokenSelect = (token) => {
     console.log('TokenListScreen - handleTokenSelect called with token:', token);
-    if (onSelect && typeof onSelect === 'function') {
+    if (onSelect) {
       console.log('TokenListScreen - Calling onSelect callback');
       onSelect(token);
       console.log('TokenListScreen - onSelect callback completed');
-      navigation.goBack();
-    } else {
-      console.log('TokenListScreen - onSelect callback not available or not a function');
     }
+    navigation.goBack();
   };
 
   const renderTokenItem = ({ item }) => (

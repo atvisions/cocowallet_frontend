@@ -17,11 +17,11 @@ import { CommonActions } from '@react-navigation/native';
 import { useWallet } from '../../contexts/WalletContext';
 import { processWalletData } from '../../utils/walletUtils';
 
-export default function ImportWallet({ navigation, route }) {
-  const { updateSelectedWallet } = useWallet();
-  const [privateKey, setPrivateKey] = useState('');
-  const [loading, setLoading] = useState(false);
+const ImportWallet = ({ navigation, route }) => {
   const { chain } = route.params || {};
+  const [privateKey, setPrivateKey] = useState('');
+  const { updateSelectedWallet } = useWallet();
+  const [loading, setLoading] = useState(false);
 
   const handleImport = async () => {
     if (!privateKey.trim()) {
@@ -29,49 +29,61 @@ export default function ImportWallet({ navigation, route }) {
       return;
     }
 
-    navigation.navigate('PasswordVerification', {
-      screen: 'PasswordInput',
-      params: {
-        purpose: 'import_wallet',
-        title: 'Import Wallet',
-        chain,
-        privateKey,
-        onSuccess: async (password) => {
+    navigation.navigate('PaymentPassword', {
+      title: 'Import Wallet',
+      purpose: 'import_wallet',
+      onSuccess: async (password) => {
+        try {
+          // 显示加载页面
           navigation.navigate('LoadingWallet', {
+            message: 'Importing wallet...'
+          });
+
+          const deviceId = await DeviceManager.getDeviceId();
+          const response = await api.importPrivateKey(
+            deviceId,
             chain,
             privateKey,
             password
-          });
-          return true;
+          );
+
+          if (response?.status === 'success') {
+            // 处理钱包数据
+            if (response.wallet) {
+              const processedWallet = processWalletData(response.wallet);
+              await updateSelectedWallet(processedWallet);
+            }
+
+            // 导入成功后重置导航栈并导航到主页面
+            navigation.reset({
+              index: 0,
+              routes: [
+                {
+                  name: 'MainStack',
+                  params: {
+                    screen: 'Tabs',
+                    params: {
+                      screen: 'Wallet'
+                    }
+                  }
+                }
+              ]
+            });
+            return true;
+          } else {
+            // 导入失败，返回到导入页面
+            navigation.goBack();
+            Alert.alert('Error', response.message || 'Failed to import wallet');
+            return false;
+          }
+        } catch (error) {
+          console.error('Failed to import wallet:', error);
+          navigation.goBack();
+          Alert.alert('Error', 'Failed to import wallet');
+          return false;
         }
       }
     });
-  };
-
-  const importWallet = async (password) => {
-    try {
-      const deviceId = await DeviceManager.getDeviceId();
-      const response = await api.importPrivateKey(deviceId, chain, privateKey, password);
-      
-      if (response?.status === 'success') {
-        // 处理钱包数据，确保头像URL正确
-        if (response.wallet) {
-          const processedWallet = processWalletData(response.wallet);
-          await updateSelectedWallet(processedWallet);
-        }
-        
-        // 直接使用 CommonActions.reset 重置导航栈并进入主页面
-        navigation.dispatch(
-          CommonActions.reset({
-            index: 0,
-            routes: [{ name: 'MainStack' }]
-          })
-        );
-      }
-    } catch (error) {
-      console.error('Import wallet error:', error);
-      Alert.alert('Error', 'Failed to import wallet');
-    }
   };
 
   const fetchWalletBalance = async (deviceId) => {
@@ -120,7 +132,9 @@ export default function ImportWallet({ navigation, route }) {
       {loading && <Loading />}
     </SafeAreaView>
   );
-}
+};
+
+export default ImportWallet;
 
 const styles = StyleSheet.create({
   container: {

@@ -446,15 +446,14 @@ export const api = {
     }
   },
 
-  async sendEvmTransaction(deviceId, params) {
+  async sendEvmTransaction(walletId, params) {
     try {
-      const response = await instance.post('/evm/transactions/send/', {
-        device_id: deviceId,
-        from_address: params.fromAddress,
-        to_address: params.toAddress,
+      const response = await instance.post(`/evm/wallets/${walletId}/transfer/`, {
+        device_id: params.device_id,
+        to_address: params.to_address,
         amount: params.amount,
-        token: params.token,
-        payment_password: params.password,
+        payment_password: params.payment_password,
+        token_address: params.token,
         gas_limit: params.gas_limit,
         gas_price: params.gas_price,
         max_priority_fee: params.max_priority_fee,
@@ -462,31 +461,44 @@ export const api = {
       });
       return response.data;
     } catch (error) {
-      console.error('[API] Send EVM transaction error:', error);
-      return {
-        success: false,
-        message: error.response?.data?.message || 'Failed to send transaction'
-      };
+      console.log('API Error Response:', error.response?.data);
+      throw error.response?.data || error;
     }
   },
 
-  async sendSolanaTransaction(deviceId, params) {
+  async sendSolanaTransaction(walletId, params) {
     try {
-      const response = await instance.post('/solana/transactions/send/', {
-        device_id: deviceId,
-        from_address: params.fromAddress,
-        to_address: params.toAddress,
+      const response = await instance.post(`/solana/wallets/${walletId}/transfer/`, {
+        device_id: params.device_id,
+        to_address: params.to_address,
         amount: params.amount,
         token_address: params.token_address,
         payment_password: params.payment_password
       });
       return response.data;
     } catch (error) {
-      console.error('[API] Send Solana transaction error:', error);
-      return {
-        success: false,
-        message: error.response?.data?.message || 'Failed to send transaction'
-      };
+      console.log('API Error Response:', error.response?.data);
+      throw error.response?.data || error;
+    }
+  },
+
+  async sendTransaction(deviceId, walletId, transactionData) {
+    try {
+      const response = await instance.post('/transactions/send/', {
+        device_id: deviceId,
+        wallet_id: walletId,
+        recipient_address: transactionData.recipientAddress,
+        amount: transactionData.amount,
+        token_address: transactionData.contractAddress,
+        chain: transactionData.chain,
+        decimals: transactionData.decimals
+      });
+      
+      console.log('Send transaction API response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Send transaction error:', error.response?.data || error);
+      throw error;
     }
   },
 };
@@ -530,4 +542,20 @@ export const selectChain = async (deviceId, selectedChain) => {
     }
 
     return await response.json();
+};
+
+export const sendSolanaTransaction = async (walletId, params) => {
+  try {
+    const response = await instance.post(`/solana/wallets/${walletId}/transfer/`, {
+      device_id: params.device_id,
+      to_address: params.to_address,
+      amount: params.amount,
+      token_address: params.token_address,
+      payment_password: params.payment_password
+    });
+    return response.data;
+  } catch (error) {
+    console.log('API Error Response:', error.response?.data);
+    throw error.response?.data || error;
+  }
 };

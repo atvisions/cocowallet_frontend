@@ -20,28 +20,25 @@ export default function ShowPrivateKey({ route, navigation }) {
 
   const handleContinue = () => {
     if (isConfirmed) {
-      navigation.navigate('PasswordVerification', {
-        screen: 'PasswordInput',
-        params: {
-          purpose: 'show_private_key',
-          title: 'Show Private Key',
-          walletId: wallet.id,
-          onSuccess: async (password) => {
-            try {
-              const deviceId = await DeviceManager.getDeviceId();
-              const response = await api.getPrivateKey(wallet.id, deviceId, password);
-              
-              if (response.status === 'success' && response.data?.private_key) {
-                navigation.replace('PrivateKeyDisplay', {
-                  privateKey: response.data.private_key
-                });
-                return true;
-              }
-              return false;
-            } catch (error) {
-              console.error('Failed to get private key:', error);
-              return false;
+      navigation.navigate('PaymentPassword', {
+        title: 'Show Private Key',
+        purpose: 'show_private_key',
+        walletId: wallet.id,
+        onSuccess: async (password) => {
+          try {
+            const deviceId = await DeviceManager.getDeviceId();
+            const response = await api.getPrivateKey(wallet.id, deviceId, password);
+            
+            if (response.status === 'success' && response.data?.private_key) {
+              navigation.navigate('PrivateKeyDisplay', {
+                privateKey: response.data.private_key
+              });
+              return true;
             }
+            return false;
+          } catch (error) {
+            console.error('Failed to get private key:', error);
+            return false;
           }
         }
       });

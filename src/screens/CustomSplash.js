@@ -1,35 +1,35 @@
 import React, { useEffect } from 'react';
-import { View, Image, Animated, Easing, StyleSheet } from 'react-native';
+import { View, StyleSheet, Image } from 'react-native';
 
-export default function CustomSplash() {
-  const spinValue = new Animated.Value(0);
-
+export default function CustomSplash({ navigation }) {
   useEffect(() => {
-    Animated.loop(
-      Animated.timing(spinValue, {
-        toValue: 1,
-        duration: 2000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
+    // 添加超时以确保启动页面不会一直显示
+    const timer = setTimeout(() => {
+      // 检查是否是首次启动，决定导航到 Onboarding 还是 MainStack
+      checkFirstLaunch();
+    }, 2000); // 2秒后自动跳转
+
+    return () => clearTimeout(timer);
   }, []);
 
-  const spin = spinValue.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
+  const checkFirstLaunch = async () => {
+    try {
+      // 这里可以添加检查逻辑，比如检查是否有存储的钱包等
+      // 暂时直接导航到 MainStack
+      navigation.replace('MainStack');
+    } catch (error) {
+      console.error('Error during launch check:', error);
+      // 发生错误时也导航到 MainStack
+      navigation.replace('MainStack');
+    }
+  };
 
   return (
     <View style={styles.container}>
-      <Animated.Image
-        source={require('../../assets/adaptive-icon.png')}
-        style={[
-          styles.logo,
-          {
-            transform: [{ rotate: spin }],
-          },
-        ]}
+      <Image
+        source={require('../../assets/splash.png')}
+        style={styles.logo}
+        resizeMode="contain"
       />
     </View>
   );
@@ -39,12 +39,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#171C32',
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
   },
   logo: {
-    width: 150,
-    height: 150,
-    resizeMode: 'contain',
+    width: 200,
+    height: 200,
   },
 }); 

@@ -23,9 +23,25 @@ import ImportWallet from '../screens/wallet/ImportWallet';
 import VerifyMnemonic from '../screens/wallet/VerifyMnemonic';
 import LoadingWallet from '../screens/wallet/LoadingWallet';
 import TokenListScreen from '../screens/wallet/TokenListScreen';
+import SendScreen from '../screens/wallet/SendScreen';
+import SendConfirmationScreen from '../screens/wallet/SendConfirmationScreen';
+import TransactionLoadingScreen from '../screens/wallet/TransactionLoadingScreen';
+import TransactionSuccessScreen from '../screens/wallet/TransactionSuccessScreen';
+import TransactionFailedScreen from '../screens/wallet/TransactionFailedScreen';
+import HistoryScreen from '../screens/wallet/HistoryScreen';
+import ReceiveScreen from '../screens/wallet/ReceiveScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
+
+console.log('WalletScreen type:', typeof WalletScreen);
+console.log('WalletScreen:', WalletScreen);
+
+const FallbackScreen = () => (
+  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+    <Text>Loading...</Text>
+  </View>
+);
 
 function CustomTabBar({ state, descriptors, navigation }) {
   const animatedValues = React.useRef(
@@ -126,42 +142,23 @@ function CustomTabBar({ state, descriptors, navigation }) {
   );
 }
 
-function TabScreens() {
+const TabScreens = () => {
   return (
     <Tab.Navigator
       tabBar={props => <CustomTabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: '#171C32',
-          borderTopWidth: 0,
-          elevation: 0,
-          shadowOpacity: 0,
-          height: Platform.OS === 'ios' ? 80 : 60,
-          borderTopColor: 'transparent',
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-        },
-        tabBarBackground: () => (
-          <View style={{ 
-            flex: 1, 
-            backgroundColor: '#171C32',
-            borderTopWidth: 0,
-          }} />
-        ),
       }}
     >
       <Tab.Screen 
         name="Wallet" 
-        component={WalletScreen}
+        component={WalletScreen || FallbackScreen}
         options={{
           tabBarIcon: ({ focused }) => (
             <Ionicons 
               name={focused ? "wallet" : "wallet-outline"} 
               size={24} 
-              color={focused ? "#3B82F6" : "#8E8E8E"} 
+              color={focused ? "#1FC595" : "#8E8E8E"} 
             />
           ),
         }}
@@ -174,7 +171,7 @@ function TabScreens() {
             <Ionicons 
               name={focused ? "swap-horizontal" : "swap-horizontal-outline"} 
               size={24} 
-              color={focused ? "#3B82F6" : "#8E8E8E"} 
+              color={focused ? "#1FC595" : "#8E8E8E"} 
             />
           ),
         }}
@@ -187,14 +184,14 @@ function TabScreens() {
             <Ionicons 
               name={focused ? "settings" : "settings-outline"} 
               size={24} 
-              color={focused ? "#3B82F6" : "#8E8E8E"} 
+              color={focused ? "#1FC595" : "#8E8E8E"} 
             />
           ),
         }}
       />
     </Tab.Navigator>
   );
-}
+};
 
 const MainStack = () => {
   return (
@@ -202,37 +199,7 @@ const MainStack = () => {
       screenOptions={{
         headerShown: false,
         cardStyle: { backgroundColor: '#171C32' },
-        cardStyleInterpolator: ({ current: { progress }, layouts }) => ({
-          cardStyle: {
-            transform: [
-              {
-                translateX: progress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [layouts.screen.width, 0],
-                }),
-              },
-              {
-                scale: progress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.95, 1],
-                }),
-              },
-            ],
-            opacity: progress.interpolate({
-              inputRange: [0, 0.5, 1],
-              outputRange: [0, 0.5, 1],
-            }),
-          },
-          overlayStyle: {
-            opacity: progress.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0, 0.5],
-            }),
-          },
-        }),
-        presentation: 'card',
       }}
-      initialRouteName="Tabs"
     >
       <Stack.Screen name="Tabs" component={TabScreens} />
       <Stack.Screen name="WalletSelector" component={WalletSelector} />
@@ -241,13 +208,20 @@ const MainStack = () => {
       <Stack.Screen name="TokenManagement" component={TokenManagement} />
       <Stack.Screen name="RenameWallet" component={RenameWallet} />
       <Stack.Screen name="DeleteWallet" component={DeleteWallet} />
-      <Stack.Screen name="PaymentPasswordScreen" component={PaymentPasswordScreen} />
+      <Stack.Screen name="PaymentPassword" component={PaymentPasswordScreen} />
       <Stack.Screen name="SelectChain" component={SelectChain} />
       <Stack.Screen name="ShowMnemonic" component={ShowMnemonic} />
       <Stack.Screen name="ImportWallet" component={ImportWallet} />
       <Stack.Screen name="VerifyMnemonic" component={VerifyMnemonic} />
       <Stack.Screen name="LoadingWallet" component={LoadingWallet} />
       <Stack.Screen name="TokenListScreen" component={TokenListScreen} />
+      <Stack.Screen name="Send" component={SendScreen} />
+      <Stack.Screen name="SendConfirmation" component={SendConfirmationScreen} />
+      <Stack.Screen name="TransactionLoading" component={TransactionLoadingScreen} />
+      <Stack.Screen name="TransactionSuccess" component={TransactionSuccessScreen} />
+      <Stack.Screen name="TransactionFailed" component={TransactionFailedScreen} />
+      <Stack.Screen name="History" component={HistoryScreen} />
+      <Stack.Screen name="Receive" component={ReceiveScreen} />
     </Stack.Navigator>
   );
 };

@@ -115,12 +115,9 @@ export default function EditWallet({ route, navigation }) {
         <TouchableOpacity 
           style={styles.actionItem}
           onPress={() => {
-            navigation.dispatch(
-              CommonActions.navigate({
-                name: 'ShowPrivateKey',
-                params: { wallet: currentWallet }
-              })
-            );
+            navigation.navigate('ShowPrivateKey', {
+              wallet: currentWallet
+            });
           }}
         >
           <View style={[styles.iconContainer, styles.keyIcon]}>

@@ -21,14 +21,7 @@ export default function PrivateKeyDisplay({ route, navigation }) {
   };
 
   const handleBack = () => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-    } else {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Main' }],
-      });
-    }
+    navigation.goBack();
   };
 
   return (

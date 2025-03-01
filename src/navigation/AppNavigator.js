@@ -1,24 +1,24 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
+
+// 导入页面组件
 import Onboarding from '../screens/onboarding/Onboarding';
-import SetBiometricPassword from '../screens/settings/SetBiometricPassword';
-import Settings from '../screens/settings/SettingsScreen';
-import RenameWallet from '../screens/wallet/RenameWallet';
-import SetPaymentPassword from '../screens/auth/SetPaymentPassword';
-import ShowPrivateKey from '../screens/wallet/ShowPrivateKey';
 import MainTabs from './MainTabs';
 import WalletSelector from '../screens/wallet/WalletSelector';
 import SelectChain from '../screens/wallet/SelectChain';
-import ShowMnemonic from '../screens/ShowMnemonic';
+import ShowMnemonic from '../screens/wallet/ShowMnemonic';
 import VerifyMnemonic from '../screens/wallet/VerifyMnemonic';
 import ImportWallet from '../screens/wallet/ImportWallet';
-import CustomSplash from '../screens/CustomSplash';
+import SetPaymentPassword from '../screens/auth/SetPaymentPassword';
+import RenameWallet from '../screens/wallet/RenameWallet';
+import ShowPrivateKey from '../screens/wallet/ShowPrivateKey';
 import LoadingWallet from '../screens/wallet/LoadingWallet';
 import DeleteWallet from '../screens/wallet/DeleteWallet';
 import PaymentPasswordScreen from '../screens/wallet/PaymentPasswordScreen';
 import CreateWallet from '../screens/wallet/CreateWallet';
 import TokenListScreen from '../screens/wallet/TokenListScreen';
-
+import CustomSplash from '../screens/CustomSplash';
+import PrivateKeyDisplay from '../screens/wallet/PrivateKeyDisplay';
 const Stack = createStackNavigator();
 
 const AppNavigator = () => {
@@ -64,13 +64,12 @@ const AppNavigator = () => {
       <Stack.Screen name="VerifyMnemonic" component={VerifyMnemonic} />
       <Stack.Screen name="ImportWallet" component={ImportWallet} />
       <Stack.Screen name="SetPaymentPassword" component={SetPaymentPassword} />
-      <Stack.Screen name="Settings" component={Settings} />
-      <Stack.Screen name="SetBiometricPassword" component={SetBiometricPassword} />
       <Stack.Screen name="RenameWallet" component={RenameWallet} />
       <Stack.Screen name="ShowPrivateKey" component={ShowPrivateKey} />
+      <Stack.Screen name="PrivateKeyDisplay" component={PrivateKeyDisplay} />
       <Stack.Screen name="LoadingWallet" component={LoadingWallet} />
       <Stack.Screen name="DeleteWallet" component={DeleteWallet} />
-      <Stack.Screen name="PaymentPasswordScreen" component={PaymentPasswordScreen} />
+      <Stack.Screen name="PaymentPassword" component={PaymentPasswordScreen} />
       <Stack.Screen name="CreateWallet" component={CreateWallet} />
       <Stack.Screen name="TokenListScreen" component={TokenListScreen} />
     </Stack.Navigator>

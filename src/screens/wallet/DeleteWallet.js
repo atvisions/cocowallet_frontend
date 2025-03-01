@@ -20,12 +20,10 @@ export default function DeleteWallet({ route, navigation }) {
   const [isConfirmed, setIsConfirmed] = useState(false);
 
   const handleConfirm = () => {
-    navigation.navigate('PasswordVerification', {
-      screen: 'PasswordInput',
-      params: {
-        purpose: 'delete_wallet',
-        title: 'Delete Wallet',
-        walletId: wallet.id,
+    navigation.navigate('PaymentPassword', {
+      title: 'Delete Wallet',
+      purpose: 'delete_wallet',
+      walletId: wallet.id,
       onSuccess: async (password) => {
         try {
           const deviceId = await DeviceManager.getDeviceId();
@@ -76,12 +74,8 @@ export default function DeleteWallet({ route, navigation }) {
         } catch (error) {
           return { error: error.message || 'Failed to delete wallet' };
         }
-      },
-      purpose: 'delete_wallet',
-      title: 'Delete Wallet',
-      walletId: wallet.id
-    }
-  });
+      }
+    });
   };
 
   return (

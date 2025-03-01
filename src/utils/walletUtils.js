@@ -42,3 +42,23 @@ export const preloadWalletAvatar = async (wallet) => {
     console.warn(`Failed to prefetch wallet avatar for ${wallet.id}:`, err);
   }
 };
+
+/**
+ * 获取钱包链类型
+ * @param {Object} wallet - 钱包对象
+ * @returns {string} - 链类型
+ */
+export const getWalletChainType = (wallet) => {
+  if (!wallet) return '';
+  return (wallet.chain || '').toUpperCase();
+};
+
+/**
+ * 检查是否为EVM链
+ * @param {string} chainType - 链类型
+ * @returns {boolean} - 是否为EVM链
+ */
+export const isEVMChain = (chainType) => {
+  const type = (chainType || '').toUpperCase();
+  return type === 'ETH' || type === 'EVM' || type === 'BASE';
+};

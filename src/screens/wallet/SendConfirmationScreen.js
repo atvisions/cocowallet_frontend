@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -18,105 +18,76 @@ export default function SendConfirmationScreen({ navigation, route }) {
   const { recipientAddress, amount, token, tokenInfo } = route.params;
   const { selectedWallet } = useWallet();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [hasInsufficientGas, setHasInsufficientGas] = useState(false);
+  const [tokenList, setTokenList] = useState([]);
+
+  useEffect(() => {
+    loadTokens();
+  }, []);
+
+  const loadTokens = async () => {
+    if (!selectedWallet?.id) return;
+
+    try {
+      const deviceId = await DeviceManager.getDeviceId();
+      const response = await api.getWalletTokens(
+        deviceId,
+        selectedWallet.id,
+        selectedWallet.chain
+      );
+
+      if (response?.data?.tokens) {
+        setTokenList(response.data.tokens);
+        checkGasBalance(response.data.tokens);
+      }
+    } catch (error) {
+      console.error('Failed to load tokens:', error);
+    }
+  };
+
+  const checkGasBalance = (tokens) => {
+    const chainType = (tokenInfo.chain || selectedWallet.chain || '').toUpperCase();
+    const isEVM = chainType === 'ETH' || chainType === 'EVM' || chainType === 'BASE';
+    
+    if (isEVM) {
+      // 检查 ETH 余额是否足够支付 gas
+      const nativeToken = tokens.find(t => t.is_native);
+      const ethBalance = parseFloat(nativeToken?.balance_formatted || 0);
+      const estimatedGas = 0.001; // 预估 gas 费用
+      
+      if (ethBalance < estimatedGas) {
+        setHasInsufficientGas(true);
+      }
+    }
+  };
 
   const handleConfirm = () => {
     console.log('=== Starting transaction confirmation process ===');
     console.log('Current state:', { isProcessing, amount, token, recipientAddress });
     setIsProcessing(true);
+    
     console.log('Navigating to password verification...');
-    navigation.navigate('PasswordVerification', {
-      screen: 'PasswordInput',
+    navigation.navigate('MainStack', {
+      screen: 'PaymentPassword',
       params: {
-        purpose: 'send_transaction',
         title: 'Confirm Transaction',
-        onSuccess: async (password) => {
-          try {
-            console.log('Password verification successful, processing transaction...');
-            await processSendTransaction(password);
-            return true;
-          } catch (error) {
-            console.error('Transaction processing error:', error);
-            Alert.alert('Error', 'Failed to process transaction');
-            return false;
-          }
+        purpose: 'send_transaction',
+        onSuccess: (password) => {
+          setIsProcessing(false);
+          navigation.replace('TransactionLoading', {
+            recipientAddress,
+            amount,
+            token,
+            tokenInfo,
+            selectedWallet,
+            password
+          });
+        },
+        onCancel: () => {
+          setIsProcessing(false);
         }
       }
     });
-  };
-
-  const processSendTransaction = async (password) => {
-    try {
-      console.log('=== Starting transaction processing ===')
-      const deviceId = await DeviceManager.getDeviceId();
-      console.log('Device ID obtained:', deviceId);
-      
-      // Determine chain type and prepare transaction parameters
-      const isEVM = selectedWallet.chain.toLowerCase().includes('evm');
-      console.log('Chain type:', isEVM ? 'EVM' : 'Solana');
-      let response;
-
-      if (isEVM) {
-        console.log('Sending EVM transaction with params:', {
-          fromAddress: selectedWallet.address,
-          toAddress: recipientAddress,
-          amount,
-          token
-        });
-        response = await api.sendEvmTransaction(deviceId, {
-          fromAddress: selectedWallet.address,
-          toAddress: recipientAddress,
-          amount: amount,
-          token: token,
-          password: password,
-          gas_limit: "100000",
-          gas_price: "20000000000",
-          max_priority_fee: "1500000000",
-          max_fee: "25000000000"
-        });
-      } else {
-        console.log('Sending Solana transaction with params:', {
-          fromAddress: selectedWallet.address,
-          toAddress: recipientAddress,
-          amount,
-          token_address: token
-        });
-        response = await api.sendSolanaTransaction(deviceId, {
-          fromAddress: selectedWallet.address,
-          toAddress: recipientAddress,
-          amount: amount,
-          token_address: token,
-          payment_password: password
-        });
-      }
-
-      console.log('Transaction response:', response);
-
-      if (response.success) {
-        console.log('Transaction successful, showing success alert');
-        Alert.alert(
-          'Success',
-          'Transaction sent successfully',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                console.log('Navigating back to Main screen');
-                navigation.navigate('Main');
-              }
-            }
-          ]
-        );
-      } else {
-        console.error('Transaction failed:', response.message);
-        Alert.alert('Error', response.message || 'Failed to send transaction');
-      }
-    } catch (error) {
-      console.error('Send transaction error:', error);
-      Alert.alert('Error', 'Failed to send transaction. Please try again.');
-    } finally {
-      console.log('Transaction process completed, resetting processing state');
-      setIsProcessing(false);
-    }
   };
 
   const formatAddress = (address) => {
@@ -124,6 +95,23 @@ export default function SendConfirmationScreen({ navigation, route }) {
     return address.length > 16
       ? `${address.slice(0, 8)}...${address.slice(-8)}`
       : address;
+  };
+
+  // 获取网络原生代币符号
+  const getNativeTokenSymbol = () => {
+    const chainType = (tokenInfo.chain || selectedWallet.chain || '').toUpperCase();
+    switch (chainType) {
+      case 'ETH':
+      case 'EVM':
+        return 'ETH';
+      case 'BASE':
+        return 'ETH';
+      case 'SOL':
+      case 'SOLANA':
+        return 'SOL';
+      default:
+        return 'ETH';
+    }
   };
 
   return (
@@ -161,20 +149,43 @@ export default function SendConfirmationScreen({ navigation, route }) {
 
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Network Fee</Text>
-              <Text style={styles.detailValue}>~0.001 {token}</Text>
+              <Text style={[
+                styles.detailValue,
+                hasInsufficientGas && styles.warningText
+              ]}>
+                ~0.001 {getNativeTokenSymbol()}
+              </Text>
             </View>
+
+            {hasInsufficientGas && (
+              <View style={styles.warningContainer}>
+                <Ionicons name="warning-outline" size={20} color="#FFB800" />
+                <Text style={styles.warningText}>
+                  Insufficient {getNativeTokenSymbol()} balance for gas fee. Please ensure you have enough {getNativeTokenSymbol()} to cover the network fee.
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
         <TouchableOpacity 
-          style={[styles.confirmButton, isProcessing && styles.confirmButtonDisabled]}
+          style={[
+            styles.confirmButton,
+            isProcessing && styles.confirmButtonDisabled,
+            hasInsufficientGas && styles.warningButton
+          ]}
           onPress={handleConfirm}
-          disabled={isProcessing}
+          disabled={isProcessing || hasInsufficientGas}
         >
           {isProcessing ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.confirmButtonText}>Confirm</Text>
+            <Text style={styles.confirmButtonText}>
+              {hasInsufficientGas ? 
+                `Insufficient ${getNativeTokenSymbol()} for Gas` : 
+                'Confirm'
+              }
+            </Text>
           )}
         </TouchableOpacity>
       </ScrollView>
@@ -248,4 +259,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  warningContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 184, 0, 0.1)',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 12,
+  },
+  warningText: {
+    color: '#FFB800',
+    fontSize: 14,
+    marginLeft: 8,
+    flex: 1,
+  },
+  warningButton: {
+    backgroundColor: '#FFB800',
+  }
 });

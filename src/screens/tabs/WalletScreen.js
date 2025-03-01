@@ -16,16 +16,14 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../services/api';
 import { DeviceManager } from '../../utils/device';
-import { SafeAreaView as SafeAreaViewContext } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useWallet } from '../../contexts/WalletContext';
 import { LinearGradient } from 'expo-linear-gradient';
-import TokenManagement from '../TokenManagement';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CommonActions } from '@react-navigation/native';
 import { useWalletNavigation } from '../../hooks/useWalletNavigation';
 
-export default function WalletScreen({ navigation }) {
+const WalletScreen = ({ navigation }) => {
   const { selectedWallet, updateSelectedWallet, setWallets, setSelectedWallet } = useWallet();
   const [wallets, setWalletsState] = useState([]);
   const [tokens, setTokens] = useState([]);
@@ -273,48 +271,17 @@ export default function WalletScreen({ navigation }) {
     </LinearGradient>
   );
 
-  const renderActionButtons = () => (
-      <View style={styles.actionButtonsContainer}>
-        <TouchableOpacity 
-          style={styles.actionButton}
-          onPress={() => navigation.navigate('ReceiveScreen')}
-        >
-          <LinearGradient
-            colors={['#1FC595', '#17A982']}
-            style={styles.actionButtonGradient}
-          >
-            <Ionicons name="arrow-down" size={24} color="#FFFFFF" />
-          </LinearGradient>
-          <Text style={styles.actionButtonText}>Receive</Text>
-        </TouchableOpacity>
-  
-        <TouchableOpacity 
-          style={styles.actionButton}
-          onPress={() => navigation.navigate('SendScreen')}
-        >
-          <LinearGradient
-            colors={['#FF4B55', '#E63F48']}
-            style={styles.actionButtonGradient}
-          >
-            <Ionicons name="arrow-up" size={24} color="#FFFFFF" />
-          </LinearGradient>
-          <Text style={styles.actionButtonText}>Send</Text>
-        </TouchableOpacity>
-  
-        <TouchableOpacity 
-          style={styles.actionButton}
-          onPress={() => navigation.navigate('HistoryScreen')}
-        >
-          <LinearGradient
-            colors={['#3B82F6', '#2563EB']}
-            style={styles.actionButtonGradient}
-          >
-            <Ionicons name="time" size={24} color="#FFFFFF" />
-          </LinearGradient>
-          <Text style={styles.actionButtonText}>History</Text>
-        </TouchableOpacity>
-      </View>
-    );
+  const handleReceive = () => {
+    // 直接导航到 Receive 页面，不需要先选择钱包
+    navigation.navigate('Receive');
+  };
+
+  const handleSend = () => {
+    // 导航到发送页面
+    navigation.navigate('Send', {
+      selectedWallet
+    });
+  };
 
   const handleTokenVisibilityChanged = () => {
     console.log('Token visibility changed, refreshing wallet data...');
@@ -442,124 +409,132 @@ export default function WalletScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#171C32" />
-      <SafeAreaViewContext 
-        style={styles.safeArea}
-        edges={['right', 'bottom', 'left']}
-      >
-        <View style={styles.header}>
-          <View style={styles.walletSelectorContainer}>
-            <TouchableOpacity 
-              style={styles.walletSelector}
-              onPress={() => navigation.navigate('WalletSelector')}
-            >
-              {selectedWallet?.avatar && (
-                <Image 
-                  source={{ uri: selectedWallet.avatar }}
-                  style={styles.walletLogo}
-                />
-              )}
-              <View style={styles.walletNameContainer}>
-                <Text 
-                  style={styles.walletName} 
-                  numberOfLines={1} 
-                  ellipsizeMode="tail"
-                >
-                  {selectedWallet?.name 
-                    ? selectedWallet.name.length > 20 
-                      ? `${selectedWallet.name.slice(0, 20)}...` 
-                      : selectedWallet.name 
-                    : 'Select Wallet'
-                  }
-                </Text>
-                <Ionicons  
-                  name="chevron-down" 
-                  size={20} 
-                  color="#FFFFFF" 
-                  style={styles.dropdownIcon}
-                />
-              </View>
-            </TouchableOpacity>
-          </View>
+      <SafeAreaView style={styles.header}>
+        <View style={styles.headerContent}>
+          <TouchableOpacity 
+            style={styles.walletSelector}
+            onPress={handleWalletSelect}
+          >
+            <Image 
+              source={{ uri: selectedWallet?.avatar }} 
+              style={styles.walletAvatar} 
+            />
+            <Text style={styles.walletName}>{selectedWallet?.name}</Text>
+            <Ionicons name="chevron-down" size={20} color="#8E8E8E" />
+          </TouchableOpacity>
+
           <View style={styles.headerButtons}>
-            <TouchableOpacity style={styles.headerButton}>
+            <TouchableOpacity 
+              style={styles.headerButton}
+              onPress={() => navigation.navigate('TokenManagement')}
+            >
+              <Ionicons name="apps-outline" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.headerButton}
+              onPress={() => navigation.navigate('QRScanner')}
+            >
               <Ionicons name="scan-outline" size={24} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
         </View>
+      </SafeAreaView>
 
-        <ScrollView 
-          style={styles.content}
-          contentContainerStyle={styles.contentContainer}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={handleRefresh}
-              tintColor="#1FC595"
-              colors={['#1FC595']}
-            />
-          }
-        >
-          {renderError()}
-          {renderBalanceCard()}
-          {renderActionButtons()}
-          {renderAssetsSection()}
-        </ScrollView>
-      </SafeAreaViewContext>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor="#1FC595"
+          />
+        }
+      >
+        {renderError()}
+        {renderBalanceCard()}
+        <View style={styles.actionButtons}>
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={handleReceive}
+          >
+            <LinearGradient
+              colors={['#1FC595', '#17A982']}
+              style={styles.actionButtonGradient}
+            >
+              <Ionicons name="arrow-down" size={24} color="#FFFFFF" />
+            </LinearGradient>
+            <Text style={styles.actionButtonText}>Receive</Text>
+          </TouchableOpacity>
+  
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={handleSend}
+          >
+            <LinearGradient
+              colors={['#FF4B55', '#E63F48']}
+              style={styles.actionButtonGradient}
+            >
+              <Ionicons name="arrow-up" size={24} color="#FFFFFF" />
+            </LinearGradient>
+            <Text style={styles.actionButtonText}>Send</Text>
+          </TouchableOpacity>
+  
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={() => navigation.navigate('History', { selectedWallet })}
+          >
+            <LinearGradient
+              colors={['#3B82F6', '#2563EB']}
+              style={styles.actionButtonGradient}
+            >
+              <Ionicons name="time" size={24} color="#FFFFFF" />
+            </LinearGradient>
+            <Text style={styles.actionButtonText}>History</Text>
+          </TouchableOpacity>
+        </View>
+        {renderAssetsSection()}
+      </ScrollView>
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#171C32',
   },
-  safeArea: {
-    flex: 1,
+  header: {
     backgroundColor: '#171C32',
   },
-  header: {
+  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#171C32',
-    marginTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
-  },
-  walletSelectorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
+    paddingVertical: 4,  // 减小垂直间距
+    height: 48,  // 固定 header 高度
   },
   walletSelector: {
     flexDirection: 'row',
     alignItems: 'center',
+    height: '100%',  // 填充整个高度
   },
-  walletLogo: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+  walletAvatar: {
+    width: 28,  // 稍微减小头像尺寸
+    height: 28,
+    borderRadius: 14,
     marginRight: 8,
-  },
-  walletNameContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    maxWidth: 180,
   },
   walletName: {
     color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
     marginRight: 4,
-  },
-  dropdownIcon: {
-    marginLeft: 4,
   },
   headerButtons: {
     flexDirection: 'row',
-    marginLeft: 'auto',
+    alignItems: 'center',
   },
   headerButton: {
     width: 40,
@@ -571,9 +546,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    padding: 20,
-    paddingTop: 10,
-    paddingBottom: 20,
+    padding: 16,
   },
   balanceCard: {
     borderRadius: 24,
@@ -643,7 +616,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
-  actionButtonsContainer: {
+  actionButtons: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     paddingHorizontal: 16,
@@ -776,10 +749,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
   },
-  walletAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
-  },
 });
+
+export default WalletScreen;

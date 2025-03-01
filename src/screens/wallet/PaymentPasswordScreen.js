@@ -25,12 +25,14 @@ export default function PaymentPasswordScreen({ route, navigation }) {
   const [error, setError] = useState('');
   const fadeAnim = useState(new Animated.Value(0))[0];
   const { updateSelectedWallet, checkAndUpdateWallets } = useWallet();
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [deviceId, setDeviceId] = useState(null);
 
   useEffect(() => {
     console.log('Password length:', password.length);
     if (password.length === 6) {
       console.log('Password complete, submitting...');
-      handleSubmit();
+      handlePasswordComplete(password);
     }
   }, [password]);
 
@@ -52,6 +54,14 @@ export default function PaymentPasswordScreen({ route, navigation }) {
     }
   }, [error]);
 
+  useEffect(() => {
+    const getDeviceId = async () => {
+      const id = await DeviceManager.getDeviceId();
+      setDeviceId(id);
+    };
+    getDeviceId();
+  }, []);
+
   const handleNumberPress = (number) => {
     if (password.length < 6) {
       setPassword(prev => prev + number);
@@ -62,85 +72,71 @@ export default function PaymentPasswordScreen({ route, navigation }) {
     setPassword(prev => prev.slice(0, -1));
   };
 
-  const handleSubmit = async () => {
+  const handlePasswordComplete = async (password) => {
     try {
-      const deviceId = await DeviceManager.getDeviceId();
-      const { purpose, chain, privateKey } = route.params || {};
-      console.log('Submitting password for purpose:', purpose);
-  
-      if (purpose === 'import_wallet') {
-        navigation.replace('LoadingWallet', {
-          purpose,
-          chain,
-          privateKey,
-          password
-        });
-        return { success: true };
-      } else if (purpose === 'rename_wallet') {
-        // 处理重命名钱包的逻辑
-        const response = await api.renameWallet(walletId, deviceId, route.params.newName);
-        if (response.status === 'success') {
-          const updatedWallet = { ...route.params.wallet, name: route.params.newName };
-          await updateSelectedWallet(updatedWallet);
-          navigation.goBack();
-          return { success: true };
-        } else {
-          throw new Error(response.message || 'Failed to rename wallet');
+      setIsProcessing(true);
+      console.log('Submitting password verification...', { deviceId });
+      const response = await api.verifyPaymentPassword(deviceId, password);
+      console.log('Password verification response:', response);
+
+      if (response.status === 'success') {
+        console.log('Password verification successful, executing callback...');
+        if (route.params?.onSuccess) {
+          console.log('Calling onSuccess callback with password');
+          route.params.onSuccess(password);
         }
-      } else if (purpose === 'delete_wallet') {
-        // 处理删除钱包的逻辑
-        const response = await api.deleteWallet(walletId, deviceId, password);
-        if (response.status === 'success') {
-          // 先清除当前选中的钱包
-          await updateSelectedWallet(null);
-          // 获取最新的钱包列表
-          const walletsResponse = await api.getWallets(deviceId);
-          const walletsArray = Array.isArray(walletsResponse) ? walletsResponse : [];
-          
-          if (walletsArray.length === 0) {
-            // 如果没有钱包了，设置钱包创建状态为false并导航到引导页
-            await DeviceManager.setWalletCreated(false);
-            navigation.dispatch(
-              CommonActions.reset({
-                index: 0,
-                routes: [{ name: 'Onboarding' }]
-              })
-            );
-          } else {
-            // 如果还有其他钱包，将第一个钱包设置为当前选中钱包
-            await updateSelectedWallet(walletsArray[0]);
-            navigation.dispatch(
-              CommonActions.reset({
-                index: 0,
-                routes: [{ name: 'MainStack' }]
-              })
-            );
-          }
-          return { success: true };
-        } else {
-          throw new Error(response.message || 'Failed to delete wallet');
-        }
-      } else if (purpose === 'show_private_key') {
-        // 处理显示私钥的逻辑
-        const response = await api.getPrivateKey(walletId, deviceId, password);
-        console.log('Private key response:', response);
-        
-        if (response.status === 'success' && response.data) {
-          const privateKeyData = response.data.private_key || response.data;
-          console.log('Navigating to PrivateKeyDisplay with private key data');
-          
-          navigation.replace('PrivateKeyDisplay', {
-            privateKey: privateKeyData
-          });
-          return { success: true };
-        } else {
-          console.error('Failed to get private key:', response);
-          throw new Error(response.message || '获取私钥失败');
-        }
+        handleVerifySuccess(password);
+      } else {
+        Alert.alert('Error', response.message || 'Password verification failed');
+        setPassword('');
       }
     } catch (error) {
       console.error('Password verification error:', error);
-      setError(error.message || 'Incorrect password');
+      Alert.alert('Error', 'Failed to verify password');
+      setPassword('');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleVerifySuccess = async (password) => {
+    const { purpose, nextScreen, transactionData } = route.params;
+
+    if (purpose === 'send_transaction' && nextScreen === 'SendConfirmation') {
+      try {
+        const deviceId = await DeviceManager.getDeviceId();
+        
+        // 准备完整的交易数据
+        const sendData = {
+          ...transactionData,
+          deviceId,
+          password,
+          // 确保必要的字段都存在
+          chain: transactionData.chain,
+          walletId: transactionData.walletId,
+          recipientAddress: transactionData.recipientAddress,
+          amount: transactionData.amount,
+          token: transactionData.token,
+        };
+
+        console.log('Preparing transaction with data:', {
+          ...sendData,
+          password: '******' // 日志中隐藏密码
+        });
+
+        // 导航到交易加载页面
+        navigation.replace('TransactionLoading', {
+          message: 'Processing transaction...',
+          sendData
+        });
+
+      } catch (error) {
+        console.error('Transaction preparation error:', error);
+        Alert.alert('Error', 'Failed to prepare transaction');
+        navigation.goBack();
+      }
+    } else {
+      navigation.goBack();
     }
   };
 
