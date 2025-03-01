@@ -445,6 +445,50 @@ export const api = {
       return error;
     }
   },
+
+  async sendEvmTransaction(deviceId, params) {
+    try {
+      const response = await instance.post('/evm/transactions/send/', {
+        device_id: deviceId,
+        from_address: params.fromAddress,
+        to_address: params.toAddress,
+        amount: params.amount,
+        token: params.token,
+        payment_password: params.password,
+        gas_limit: params.gas_limit,
+        gas_price: params.gas_price,
+        max_priority_fee: params.max_priority_fee,
+        max_fee: params.max_fee
+      });
+      return response.data;
+    } catch (error) {
+      console.error('[API] Send EVM transaction error:', error);
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Failed to send transaction'
+      };
+    }
+  },
+
+  async sendSolanaTransaction(deviceId, params) {
+    try {
+      const response = await instance.post('/solana/transactions/send/', {
+        device_id: deviceId,
+        from_address: params.fromAddress,
+        to_address: params.toAddress,
+        amount: params.amount,
+        token_address: params.token_address,
+        payment_password: params.payment_password
+      });
+      return response.data;
+    } catch (error) {
+      console.error('[API] Send Solana transaction error:', error);
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Failed to send transaction'
+      };
+    }
+  },
 };
 
 export const setPaymentPassword = async (deviceId, password) => {

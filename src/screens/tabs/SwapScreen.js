@@ -19,7 +19,6 @@ import { api } from '../../services/api';
 import { DeviceManager } from '../../utils/device';
 import { useWallet } from '../../contexts/WalletContext';
 import Header from '../../components/common/Header';
-import TokenSelectorModal from '../../screens/wallet/TokenSelectorModal';
 
 export default function SwapScreen({ navigation }) {
   const { selectedWallet } = useWallet();
@@ -80,7 +79,7 @@ export default function SwapScreen({ navigation }) {
       if (!selectedWallet) return;
 
       const chain = selectedWallet.chain.toLowerCase();
-      const response = await api.get(`/api/v1/${chain}/wallets/recommended-tokens/?chain=${chain.toUpperCase()}`);
+      const response = await api.getRecommendedTokens(chain);
       
       if (response?.data) {
         setRecommendedTokens(response.data);
@@ -143,6 +142,8 @@ export default function SwapScreen({ navigation }) {
       />
       <ScrollView 
         style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -244,14 +245,6 @@ export default function SwapScreen({ navigation }) {
         </View>
       </ScrollView>
 
-      <TokenSelectorModal
-        visible={isTokenSelectorVisible}
-        onClose={() => setIsTokenSelectorVisible(false)}
-        onSelect={handleTokenSelect}
-        selectedToken={selectingTokenType === 'from' ? fromToken : toToken}
-        tokens={tokens}
-        isLoading={isLoading}
-      />
     </View>
   );
 }
@@ -264,7 +257,8 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingTop: 16,
-    paddingHorizontal: 16
+    paddingHorizontal: 16,
+    backgroundColor: '#171C32'
   },
   swapCard: {
     backgroundColor: '#1B2C41',
@@ -364,6 +358,7 @@ const styles = StyleSheet.create({
   },
   recommendedList: {
     paddingHorizontal: 8,
+    flexGrow: 0
   },
   recommendedTokenItem: {
     backgroundColor: '#1B2C41',

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,17 +9,61 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useWallet } from '../../contexts/WalletContext';
 import Header from '../../components/common/Header';
 import * as Clipboard from 'expo-clipboard';
+import { api } from '../../services/api';
+import { DeviceManager } from '../../utils/device';
 
 export default function SendScreen({ navigation, route }) {
   const { selectedWallet } = useWallet();
   const [recipientAddress, setRecipientAddress] = useState('');
   const [amount, setAmount] = useState('');
   const [isValidating, setIsValidating] = useState(false);
+  const [selectedToken, setSelectedToken] = useState(null);
+  const [tokenList, setTokenList] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    console.log('Selected wallet changed:', selectedWallet); // 添加日志
+    if (selectedWallet) {
+      loadTokens();
+    }
+  }, [selectedWallet]);
+
+  const loadTokens = async () => {
+    if (!selectedWallet?.id) return;
+
+    try {
+      setIsLoading(true);
+      console.log('Loading tokens for wallet:', selectedWallet.id); // 添加日志
+      const deviceId = await DeviceManager.getDeviceId();
+      const response = await api.getWalletTokens(
+        deviceId,
+        selectedWallet.id,
+        selectedWallet.chain
+      );
+
+      console.log('Token response:', response); // 添加日志
+
+      if (response?.data?.tokens) {
+        setTokenList(response.data.tokens);
+        // 设置默认选中的代币为原生代币
+        const nativeToken = response.data.tokens.find(token => token.is_native);
+        console.log('Native token found:', nativeToken); // 添加日志
+        if (nativeToken) {
+          setSelectedToken(nativeToken);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load tokens:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handlePaste = async () => {
     const text = await Clipboard.getStringAsync();
@@ -66,12 +110,82 @@ export default function SendScreen({ navigation, route }) {
       return;
     }
 
-    // Navigate to confirmation screen
+    // Navigate to confirmation screen with selected token info
     navigation.navigate('SendConfirmation', {
       recipientAddress,
       amount,
-      token: selectedWallet.chain,
+      token: selectedToken?.symbol || selectedWallet.chain,
+      tokenInfo: selectedToken
     });
+  };
+
+  const handleTokenSelect = () => {
+    console.log('handleTokenSelect called');
+    if (!tokenList || tokenList.length === 0) {
+      console.log('No tokens available, tokenList:', tokenList);
+      return;
+    }
+    
+    try {
+      console.log('TokenList available, preparing to navigate with tokens:', tokenList);
+      navigation.navigate('TokenListScreen', {
+        tokens: tokenList,
+        onSelect: (token) => {
+          console.log('Token selection callback triggered with token:', token);
+          setSelectedToken(token);
+          setAmount('');
+        }
+      });
+      console.log('Navigation to TokenListScreen completed');
+    } catch (error) {
+      console.error('Navigation error:', error);
+    }
+  };
+
+  const formatBalance = (balance, decimals) => {
+    if (!balance) return '0';
+    const num = parseFloat(balance);
+    return num.toFixed(Math.min(4, decimals));
+  };
+
+  const renderTokenSection = () => {
+    if (isLoading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading tokens...</Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.tokenContainer}>
+        <TouchableOpacity 
+          style={styles.tokenSelector}
+          onPress={handleTokenSelect}
+        >
+          {selectedToken?.logo ? (
+            <Image 
+              source={{ uri: selectedToken.logo }} 
+              style={styles.tokenLogo}
+              resizeMode="contain"
+            />
+          ) : (
+            <View style={[styles.tokenLogo, styles.tokenLogoPlaceholder]} />
+          )}
+          <View style={styles.tokenDetails}>
+            <Text style={styles.tokenSymbol} numberOfLines={1}>
+              {selectedToken?.symbol || selectedWallet?.chain}
+            </Text>
+            {selectedToken?.price_usd && (
+              <Text style={styles.tokenPrice}>
+                ${parseFloat(selectedToken.price_usd).toFixed(2)}
+              </Text>
+            )}
+          </View>
+          <Ionicons name="chevron-down" size={20} color="#8E8E8E" />
+        </TouchableOpacity>
+      </View>
+    );
   };
 
   return (
@@ -118,26 +232,30 @@ export default function SendScreen({ navigation, route }) {
 
         <View style={styles.formSection}>
           <Text style={styles.label}>Amount</Text>
-          <View style={styles.amountInputContainer}>
-            <TextInput
-              style={styles.amountInput}
-              value={amount}
-              onChangeText={setAmount}
-              placeholder="0.00"
-              placeholderTextColor="#8E8E8E"
-              keyboardType="decimal-pad"
-            />
-            <View style={styles.tokenInfo}>
-              <Text style={styles.tokenSymbol}>{selectedWallet?.chain}</Text>
-              <TouchableOpacity style={styles.maxButton}>
-                <Text style={styles.maxButtonText}>MAX</Text>
-              </TouchableOpacity>
+          <View style={styles.amountContainer}>
+            <View style={styles.amountInputContainer}>
+              <TextInput
+                style={styles.amountInput}
+                value={amount}
+                onChangeText={setAmount}
+                placeholder="0.00"
+                placeholderTextColor="#8E8E8E"
+                keyboardType="decimal-pad"
+              />
+              {renderTokenSection()}
             </View>
-          </View>
-          <View style={styles.balanceInfo}>
-            <Text style={styles.balanceText}>
-              Balance: {selectedWallet?.balance || '0.00'} {selectedWallet?.chain}
-            </Text>
+            <View style={styles.tokenBalanceInfo}>
+              <View style={styles.tokenBalanceRow}>
+                <Text style={styles.balanceText}>
+                  Balance: {formatBalance(selectedToken?.balance_formatted, selectedToken?.decimals)} {selectedToken?.symbol}
+                </Text>
+                {selectedToken?.price_usd && parseFloat(amount) > 0 && (
+                  <Text style={styles.totalValueText}>
+                    ≈ ${(parseFloat(amount) * parseFloat(selectedToken.price_usd)).toFixed(2)}
+                  </Text>
+                )}
+              </View>
+            </View>
           </View>
         </View>
 
@@ -196,28 +314,75 @@ const styles = StyleSheet.create({
     padding: 8,
     marginLeft: 8,
   },
-  amountInputContainer: {
-    backgroundColor: '#272C52',
+  amountContainer: {
     borderRadius: 12,
+    backgroundColor: '#272C52',
+    overflow: 'hidden',
+  },
+  amountInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#3A3F58',
   },
   amountInput: {
     flex: 1,
     color: '#FFFFFF',
     fontSize: 24,
     fontWeight: '600',
+    minHeight: 36,
+    padding: 0,
   },
-  tokenInfo: {
+  tokenContainer: {
+    flexShrink: 0,
+    marginLeft: 16,
+    borderLeftWidth: 1,
+    borderLeftColor: '#3A3F58',
+    paddingLeft: 16,
+    justifyContent: 'center',
+    minWidth: 160,
+  },
+  tokenSelector: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: 36,
+    paddingVertical: 4,
+  },
+  tokenLogo: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    marginRight: 8,
+  },
+  tokenDetails: {
+    flex: 1,
+    marginRight: 8,
   },
   tokenSymbol: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
-    marginRight: 8,
+    marginBottom: 4,
+  },
+  chainBadge: {
+    display: 'none',
+  },
+  chainName: {
+    display: 'none',
+  },
+  tokenPrice: {
+    color: '#8E8E8E',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  tokenArrow: {
+    marginLeft: 8,
+  },
+  tokenName: {
+    color: '#8E8E8E',
+    fontSize: 12,
+    marginTop: 2,
   },
   maxButton: {
     backgroundColor: 'rgba(31, 197, 149, 0.1)',
@@ -239,6 +404,11 @@ const styles = StyleSheet.create({
     color: '#8E8E8E',
     fontSize: 14,
   },
+  priceText: {
+    color: '#8E8E8E',
+    fontSize: 14,
+    marginLeft: 8,
+  },
   continueButton: {
     backgroundColor: '#1FC595',
     borderRadius: 12,
@@ -253,5 +423,33 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  tokenLogoPlaceholder: {
+    backgroundColor: '#3A3F58',
+  },
+  loadingContainer: {
+    padding: 16,
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#8E8E8E',
+    fontSize: 14,
+  },
+  tokenBalanceInfo: {
+    padding: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#3A3F58',
+  },
+  tokenBalanceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  totalValueText: {
+    color: '#8E8E8E',
+    fontSize: 12,
+    textAlign: 'right',
+    marginLeft: 8,
   },
 });

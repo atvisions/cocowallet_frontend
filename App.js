@@ -32,7 +32,10 @@ import LoadingWallet from './src/screens/wallet/LoadingWallet';
 import ReceiveScreen from './src/screens/wallet/ReceiveScreen';
 import SendScreen from './src/screens/wallet/SendScreen';
 import SendConfirmationScreen from './src/screens/wallet/SendConfirmationScreen';
+import TransactionLoadingScreen from './src/screens/wallet/TransactionLoadingScreen';
+
 import HistoryScreen from './src/screens/tabs/HistoryScreen';
+import TokenListScreen from './src/screens/wallet/TokenListScreen';
 
 const Stack = createStackNavigator();
 const RootStack = createStackNavigator();
@@ -49,7 +52,13 @@ function MainStack() {
       <Stack.Screen name="ReceiveScreen" component={ReceiveScreen} />
       <Stack.Screen name="SendScreen" component={SendScreen} />
       <Stack.Screen name="SendConfirmation" component={SendConfirmationScreen} />
+      <Stack.Screen name="TransactionLoading" component={TransactionLoadingScreen} />
       <Stack.Screen name="HistoryScreen" component={HistoryScreen} />
+      <Stack.Screen 
+        name="TokenListScreen" 
+        component={TokenListScreen}
+        options={{ presentation: 'modal' }}
+      />
     </Stack.Navigator>
   );
 }
@@ -135,12 +144,29 @@ function AppContent() {
     <RootStack.Navigator screenOptions={{
       headerShown: false,
       cardStyle: { backgroundColor: '#171C32' },
-      cardStyleInterpolator: ({ current: { progress } }) => ({
+      cardStyleInterpolator: ({ current: { progress }, layouts }) => ({
         cardStyle: {
-          opacity: progress,
+          transform: [
+            {
+              translateY: progress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [layouts.screen.height * 0.1, 0],
+              }),
+            },
+          ],
+          opacity: progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, 1],
+          }),
+        },
+        overlayStyle: {
+          opacity: progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, 0.5],
+          }),
         },
       }),
-      presentation: 'card'
+      presentation: 'modal',
     }}>
       {initialRoute === 'Onboarding' ? (
         <RootStack.Screen name="Onboarding" component={Onboarding} />

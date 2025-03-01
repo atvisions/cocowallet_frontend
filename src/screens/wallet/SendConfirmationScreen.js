@@ -15,19 +15,30 @@ import { api } from '../../services/api';
 import { DeviceManager } from '../../utils/device';
 
 export default function SendConfirmationScreen({ navigation, route }) {
-  const { recipientAddress, amount, token } = route.params;
+  const { recipientAddress, amount, token, tokenInfo } = route.params;
   const { selectedWallet } = useWallet();
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleConfirm = () => {
+    console.log('=== Starting transaction confirmation process ===');
+    console.log('Current state:', { isProcessing, amount, token, recipientAddress });
+    setIsProcessing(true);
+    console.log('Navigating to password verification...');
     navigation.navigate('PasswordVerification', {
       screen: 'PasswordInput',
       params: {
         purpose: 'send_transaction',
         title: 'Confirm Transaction',
         onSuccess: async (password) => {
-          await processSendTransaction(password);
-          return true;
+          try {
+            console.log('Password verification successful, processing transaction...');
+            await processSendTransaction(password);
+            return true;
+          } catch (error) {
+            console.error('Transaction processing error:', error);
+            Alert.alert('Error', 'Failed to process transaction');
+            return false;
+          }
         }
       }
     });
@@ -35,18 +46,53 @@ export default function SendConfirmationScreen({ navigation, route }) {
 
   const processSendTransaction = async (password) => {
     try {
-      setIsProcessing(true);
+      console.log('=== Starting transaction processing ===')
       const deviceId = await DeviceManager.getDeviceId();
+      console.log('Device ID obtained:', deviceId);
       
-      const response = await api.sendTransaction(deviceId, {
-        fromAddress: selectedWallet.address,
-        toAddress: recipientAddress,
-        amount: amount,
-        token: token,
-        password: password
-      });
+      // Determine chain type and prepare transaction parameters
+      const isEVM = selectedWallet.chain.toLowerCase().includes('evm');
+      console.log('Chain type:', isEVM ? 'EVM' : 'Solana');
+      let response;
+
+      if (isEVM) {
+        console.log('Sending EVM transaction with params:', {
+          fromAddress: selectedWallet.address,
+          toAddress: recipientAddress,
+          amount,
+          token
+        });
+        response = await api.sendEvmTransaction(deviceId, {
+          fromAddress: selectedWallet.address,
+          toAddress: recipientAddress,
+          amount: amount,
+          token: token,
+          password: password,
+          gas_limit: "100000",
+          gas_price: "20000000000",
+          max_priority_fee: "1500000000",
+          max_fee: "25000000000"
+        });
+      } else {
+        console.log('Sending Solana transaction with params:', {
+          fromAddress: selectedWallet.address,
+          toAddress: recipientAddress,
+          amount,
+          token_address: token
+        });
+        response = await api.sendSolanaTransaction(deviceId, {
+          fromAddress: selectedWallet.address,
+          toAddress: recipientAddress,
+          amount: amount,
+          token_address: token,
+          payment_password: password
+        });
+      }
+
+      console.log('Transaction response:', response);
 
       if (response.success) {
+        console.log('Transaction successful, showing success alert');
         Alert.alert(
           'Success',
           'Transaction sent successfully',
@@ -54,19 +100,21 @@ export default function SendConfirmationScreen({ navigation, route }) {
             {
               text: 'OK',
               onPress: () => {
-                // Navigate back to wallet screen
+                console.log('Navigating back to Main screen');
                 navigation.navigate('Main');
               }
             }
           ]
         );
       } else {
+        console.error('Transaction failed:', response.message);
         Alert.alert('Error', response.message || 'Failed to send transaction');
       }
     } catch (error) {
       console.error('Send transaction error:', error);
       Alert.alert('Error', 'Failed to send transaction. Please try again.');
     } finally {
+      console.log('Transaction process completed, resetting processing state');
       setIsProcessing(false);
     }
   };

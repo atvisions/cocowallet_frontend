@@ -5,6 +5,7 @@ import { View, Text, StyleSheet, Platform, TouchableOpacity, StatusBar } from 'r
 import { Ionicons } from '@expo/vector-icons';
 import Animated from 'react-native/Libraries/Animated/Animated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Header from '../components/common/Header';
 
 import WalletScreen from '../screens/tabs/WalletScreen';
 import SwapScreen from '../screens/tabs/SwapScreen';
@@ -21,6 +22,7 @@ import ShowMnemonic from '../screens/wallet/ShowMnemonic';
 import ImportWallet from '../screens/wallet/ImportWallet';
 import VerifyMnemonic from '../screens/wallet/VerifyMnemonic';
 import LoadingWallet from '../screens/wallet/LoadingWallet';
+import TokenListScreen from '../screens/wallet/TokenListScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -200,12 +202,35 @@ const MainStack = () => {
       screenOptions={{
         headerShown: false,
         cardStyle: { backgroundColor: '#171C32' },
-        cardStyleInterpolator: ({ current: { progress } }) => ({
+        cardStyleInterpolator: ({ current: { progress }, layouts }) => ({
           cardStyle: {
-            opacity: progress,
+            transform: [
+              {
+                translateX: progress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [layouts.screen.width, 0],
+                }),
+              },
+              {
+                scale: progress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.95, 1],
+                }),
+              },
+            ],
+            opacity: progress.interpolate({
+              inputRange: [0, 0.5, 1],
+              outputRange: [0, 0.5, 1],
+            }),
+          },
+          overlayStyle: {
+            opacity: progress.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0, 0.5],
+            }),
           },
         }),
-        presentation: 'card'
+        presentation: 'card',
       }}
       initialRouteName="Tabs"
     >
@@ -222,6 +247,7 @@ const MainStack = () => {
       <Stack.Screen name="ImportWallet" component={ImportWallet} />
       <Stack.Screen name="VerifyMnemonic" component={VerifyMnemonic} />
       <Stack.Screen name="LoadingWallet" component={LoadingWallet} />
+      <Stack.Screen name="TokenListScreen" component={TokenListScreen} />
     </Stack.Navigator>
   );
 };

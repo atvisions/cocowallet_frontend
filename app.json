@@ -21,7 +21,8 @@
     "ios": {
       "supportsTablet": true,
       "userInterfaceStyle": "dark",
-      "backgroundColor": "#171C32"
+      "backgroundColor": "#171C32",
+      "bundleIdentifier": "com.cocowallet.myexpoapp"
     },
     "android": {
       "adaptiveIcon": {
@@ -32,14 +33,19 @@
       "softwareKeyboardLayoutMode": "pan",
       "allowBackup": true,
       "statusBarColor": "#171C32",
-      "navigationBarHidden": true
+      "navigationBarHidden": true,
+      "permissions": [
+        "android.permission.CAMERA"
+      ],
+      "package": "com.cocowallet.myexpoapp"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "newArchEnabled": true,
     "plugins": [
-      "expo-system-ui"
+      "expo-system-ui",
+      "expo-barcode-scanner"
     ]
   }
-} 
+}

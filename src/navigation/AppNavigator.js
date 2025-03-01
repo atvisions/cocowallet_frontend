@@ -17,6 +17,7 @@ import LoadingWallet from '../screens/wallet/LoadingWallet';
 import DeleteWallet from '../screens/wallet/DeleteWallet';
 import PaymentPasswordScreen from '../screens/wallet/PaymentPasswordScreen';
 import CreateWallet from '../screens/wallet/CreateWallet';
+import TokenListScreen from '../screens/wallet/TokenListScreen';
 
 const Stack = createStackNavigator();
 
@@ -26,9 +27,29 @@ const AppNavigator = () => {
       screenOptions={{
         headerShown: false,
         cardStyle: { backgroundColor: '#171C32' },
-        cardStyleInterpolator: ({ current: { progress } }) => ({
+        cardStyleInterpolator: ({ current: { progress }, layouts }) => ({
           cardStyle: {
-            opacity: progress,
+            transform: [
+              {
+                scale: progress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.95, 1],
+                  extrapolate: 'clamp',
+                }),
+              },
+              {
+                translateY: progress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [layouts.screen.height * 0.05, 0],
+                  extrapolate: 'clamp',
+                }),
+              },
+            ],
+            opacity: progress.interpolate({
+              inputRange: [0, 0.5, 1],
+              outputRange: [0, 0.5, 1],
+              extrapolate: 'clamp',
+            }),
           },
         }),
         presentation: 'modal',
@@ -51,6 +72,7 @@ const AppNavigator = () => {
       <Stack.Screen name="DeleteWallet" component={DeleteWallet} />
       <Stack.Screen name="PaymentPasswordScreen" component={PaymentPasswordScreen} />
       <Stack.Screen name="CreateWallet" component={CreateWallet} />
+      <Stack.Screen name="TokenListScreen" component={TokenListScreen} />
     </Stack.Navigator>
   );
 };
