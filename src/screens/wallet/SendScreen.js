@@ -17,10 +17,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useWallet } from '../../contexts/WalletContext';
 import Header from '../../components/common/Header';
 import * as Clipboard from 'expo-clipboard';
-import { api } from '../../services/api';
+import { api, getChainPath } from '../../services/api';
 import { DeviceManager } from '../../utils/device';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
+
+// 添加缓存时间常量
+const CACHE_DURATION = 30 * 1000; // 30秒
 
 export default function SendScreen({ navigation, route }) {
   const { selectedWallet } = useWallet();
@@ -60,60 +64,71 @@ export default function SendScreen({ navigation, route }) {
     forceUpdate();
   }, [amount, selectedToken]);
 
-  const loadTokens = async () => {
-    if (!selectedWallet?.id) return;
+  useEffect(() => {
+    console.log('Selected token balance details:', {
+      symbol: selectedToken?.symbol,
+      balance_formatted: selectedToken?.balance_formatted,
+      balance: selectedToken?.balance,
+      decimals: selectedToken?.decimals
+    });
+  }, [selectedToken]);
 
+  const loadTokens = async () => {
     try {
       setIsLoading(true);
-      console.log('Loading tokens for wallet:', selectedWallet.id);
       const deviceId = await DeviceManager.getDeviceId();
+      
+      console.log('Loading tokens for wallet:', {
+        walletId: selectedWallet.id,
+        chain: selectedWallet.chain.toLowerCase(),
+        deviceId
+      });
+      
+      // 获取钱包代币列表
       const response = await api.getWalletTokens(
         deviceId,
         selectedWallet.id,
-        selectedWallet.chain
+        selectedWallet.chain.toLowerCase()
       );
-
-      console.log('Token response:', response);
-
-      if (response?.data?.tokens) {
-        // 确保代币列表是数组
-        const tokens = Array.isArray(response.data.tokens) ? response.data.tokens : [];
+      
+      console.log('Tokens API response:', response);
+      
+      // 修正：检查正确的数据结构
+      if (response?.status === 'success' && response.data?.data?.tokens) {
+        const tokensData = response.data.data.tokens;
         
-        // 如果代币列表为空，添加原生代币
-        if (tokens.length === 0) {
-          const nativeToken = {
-            address: selectedWallet.chain === 'SOL' ? 'So11111111111111111111111111111111111111112' : '',
-            symbol: selectedWallet.chain,
-            name: selectedWallet.chain === 'SOL' ? 'Solana' : selectedWallet.chain,
-            decimals: 9,
-            logo: 'https://assets.coingecko.com/coins/images/4128/large/solana.png',
-            is_native: true,
-            balance: '0',
-            balance_formatted: '0',
-            price_usd: '0',
-            value_usd: '0',
-            price_change_24h: '0%'
-          };
-          tokens.push(nativeToken);
-        }
-
-        // 处理每个代币的价格字段
-        const processedTokens = tokens.map(token => ({
-          ...token,
-          price: token.price_usd || token.price || '0'
+        // 只显示可见的代币
+        const visibleTokens = tokensData.filter(token => token.is_visible);
+        
+        // 处理代币数据，确保余额格式正确
+        const processedTokens = visibleTokens.map(token => ({
+          token_address: token.address,
+          name: token.name,
+          symbol: token.symbol,
+          decimals: token.decimals,
+          logo: token.logo,
+          balance: token.balance,
+          balance_formatted: token.balance_formatted,
+          price_usd: token.price_usd,
+          value_usd: token.value_usd,
+          price_change_24h: token.price_change_24h,
+          is_native: token.is_native,
+          is_visible: token.is_visible
         }));
-
+        
+        console.log('Processed tokens:', processedTokens);
         setTokenList(processedTokens);
         
-        // 设置默认选中的代币（原生代币）
-        const nativeToken = processedTokens.find(token => token.is_native);
-        if (nativeToken) {
-          console.log('Setting native token:', nativeToken);
-          setSelectedToken(nativeToken);
+        // 默认选择第一个代币
+        if (processedTokens.length > 0) {
+          console.log('Setting default token:', processedTokens[0]);
+          setSelectedToken(processedTokens[0]);
         }
+      } else {
+        console.warn('No tokens data in response or invalid format:', response);
       }
     } catch (error) {
-      console.error('Failed to load tokens:', error);
+      console.error('加载代币失败:', error);
       Alert.alert('Error', 'Failed to load tokens');
     } finally {
       setIsLoading(false);
@@ -150,7 +165,7 @@ export default function SendScreen({ navigation, route }) {
     return !isNaN(numberValue) && numberValue > 0;
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (!recipientAddress.trim()) {
       Alert.alert('Error', 'Please enter recipient address');
       return;
@@ -166,84 +181,80 @@ export default function SendScreen({ navigation, route }) {
       return;
     }
 
-    // 检查余额是否足够
-    if (parseFloat(amount) > parseFloat(selectedToken?.balance_formatted || '0')) {
+    // 检查余额是否足够 - 确保单位一致
+    const amountToSend = parseFloat(amount);
+    
+    // 直接比较用户输入的金额和格式化后的余额
+    const formattedBalance = parseFloat(selectedToken?.balance_formatted || '0');
+    
+    console.log('Transaction amount check (DETAILED):', {
+      formattedBalance: formattedBalance,
+      amountToSend: amountToSend,
+      rawAmount: amount,
+      tokenDecimals: selectedToken?.decimals,
+      tokenBalance: selectedToken?.balance,
+      tokenBalanceFormatted: selectedToken?.balance_formatted,
+      isExceeded: amountToSend > formattedBalance
+    });
+    
+    if (amountToSend > formattedBalance) {
       Alert.alert('Error', 'Insufficient balance');
       return;
     }
 
-    // 检查钱包是否存在
-    if (!selectedWallet) {
-      console.error('No wallet selected');
-      Alert.alert('Error', 'Please select a wallet first');
-      return;
+    try {
+      // 获取设备ID
+      const deviceId = await DeviceManager.getDeviceId();
+      
+      // 准备交易数据
+      const transactionData = {
+        wallet_id: selectedWallet.id,
+        to_address: recipientAddress,
+        amount: amount, // 使用用户输入的原始金额
+        token: selectedToken?.address || 'native',
+        device_id: deviceId,
+        chain: selectedWallet.chain,
+        // 添加代币信息，以便在交易过程中使用
+        token_symbol: selectedToken?.symbol,
+        token_decimals: selectedToken?.decimals,
+        tokenInfo: selectedToken
+      };
+      
+      console.log('Transaction data prepared:', transactionData);
+      
+      // 导航到密码验证页面
+      navigation.navigate('PaymentPassword', {
+        title: 'Confirm Transaction',
+        purpose: 'send_transaction',
+        transactionData,
+        nextScreen: 'TransactionLoading'
+      });
+    } catch (error) {
+      console.error('准备交易失败:', error);
+      Alert.alert('Error', 'Failed to prepare transaction');
     }
-
-    // 检查代币是否存在
-    if (!selectedToken) {
-      console.error('No token selected');
-      Alert.alert('Error', 'Please select a token first');
-      return;
-    }
-
-    // 准备完整的交易数据，确保所有必要字段都有值
-    const transactionData = {
-      // 基本信息
-      chain: selectedWallet.chain,
-      walletId: selectedWallet.id,
-      recipientAddress,
-      amount,
-      usdValue,
-
-      // 代币信息
-      token: selectedToken.symbol,
-      tokenAddress: selectedToken.address,
-      tokenSymbol: selectedToken.symbol,
-      tokenName: selectedToken.name,
-      tokenLogo: selectedToken.logo,
-      tokenDecimals: selectedToken.decimals,
-      isNative: selectedToken.is_native,
-
-      // 发送方信息
-      senderAddress: selectedWallet.address,
-      senderName: selectedWallet.name,
-    };
-
-    // 先导航到确认页面，传递所有必要的数据
-    navigation.navigate('SendConfirmation', {
-      transactionData,  // 保持数据结构完整
-      onConfirm: () => {
-        navigation.navigate('PaymentPassword', {
-          title: 'Confirm Transaction',
-          purpose: 'send_transaction',
-          transactionData,
-          nextScreen: 'TransactionLoading'
-        });
-      }
-    });
   };
 
-  const handleTokenSelect = () => {
-    console.log('handleTokenSelect called');
-    if (!tokenList || tokenList.length === 0) {
-      console.log('No tokens available, tokenList:', tokenList);
-      return;
-    }
-    
+  // 修改 handleTokenSelect 函数
+  const handleTokenSelect = async () => {
     try {
-      console.log('TokenList available, preparing to navigate with tokens:', tokenList);
-      // 导航到 TokenListScreen
+      if (!selectedWallet?.id) {
+        console.log('No wallet selected');
+        return;
+      }
+
+      // 直接使用已经加载的 tokenList
       navigation.navigate('TokenListScreen', {
-        tokens: tokenList,
+        tokens: tokenList, // 使用已经加载的完整代币列表
         onSelect: (token) => {
-          console.log('Token selection callback triggered with token:', token);
+          console.log('Selected token from list:', token);
           setSelectedToken(token);
           setAmount('');
         }
       });
-      console.log('Navigation to TokenListScreen completed');
     } catch (error) {
-      console.error('Navigation error:', error);
+      console.error('Token selection error:', error);
+      Alert.alert('Error', 'Failed to load tokens');
     }
   };
 
@@ -267,13 +278,30 @@ export default function SendScreen({ navigation, route }) {
     return num.toLocaleString();
   };
 
-  const formatBalance = (balance, decimals) => {
-    if (!balance) return '0';
-    const num = parseFloat(balance);
-    if (num >= 1000000) {
-      return num.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  const formatBalance = (balance, decimals = 18) => {
+    if (!balance) {
+      return '0';
     }
-    return num.toFixed(Math.min(4, decimals));
+    
+    // 如果余额已经是格式化后的字符串（包含小数点），格式化为小数点后 4 位
+    if (typeof balance === 'string' && balance.includes('.')) {
+      const num = parseFloat(balance);
+      return num.toFixed(4);
+    }
+    
+    // 处理数字或不包含小数点的字符串
+    try {
+      const balanceNum = parseFloat(balance);
+      if (isNaN(balanceNum)) return '0';
+      
+      // 如果余额是整数形式的大数（链上原始余额），需要根据精度进行格式化
+      const tokenDecimals = decimals || 18;
+      const formattedBalance = balanceNum / Math.pow(10, tokenDecimals);
+      return formattedBalance.toFixed(4);
+    } catch (error) {
+      console.error('格式化余额出错:', error);
+      return '0';
+    }
   };
 
   const formatDisplayAmount = (value) => {
@@ -305,20 +333,20 @@ export default function SendScreen({ navigation, route }) {
             <Image 
               source={{ uri: selectedToken.logo }} 
               style={styles.tokenLogo}
-              resizeMode="contain"
+              resizeMode="cover"
             />
           ) : (
             <View style={[styles.tokenLogo, styles.tokenLogoPlaceholder]} />
           )}
           <View style={styles.tokenDetails}>
             <Text style={styles.tokenSymbol} numberOfLines={1}>
-              {selectedToken?.symbol || selectedWallet?.chain}
+              {selectedToken?.name || 'Select Token'}
             </Text>
-            <Text style={styles.tokenPrice}>
-              {formatBalance(selectedToken?.balance_formatted, selectedToken?.decimals)} {selectedToken?.symbol}
+            <Text style={styles.tokenBalance}>
+              {formatBalance(selectedToken?.balance, selectedToken?.decimals)} {selectedToken?.symbol || ''}
             </Text>
           </View>
-          <Ionicons name="chevron-down" size={24} color="#8E8E8E" />
+          <Ionicons name="chevron-down" size={24} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
     );
@@ -504,29 +532,32 @@ export default function SendScreen({ navigation, route }) {
 
   // 修改 getButtonState 函数
   const getButtonState = () => {
-    const { isValidAddress, isValidAmount, isExceedBalance } = validateTransaction();
+    // 计算状态
+    const amountNum = parseFloat(amount);
+    const formattedBalance = parseFloat(selectedToken?.balance_formatted || '0');
+    const hasSelectedToken = !!selectedToken;
+    const isValidAmount = !isNaN(amountNum) && amountNum > 0;
+    const isValidAddress = validateAddress(recipientAddress);
     
-    // 如果金额超出余额，直接返回 disabled
-    if (isExceedBalance) {
-      return 'disabled';
-    }
+    // 直接比较用户输入的金额和格式化后的余额
+    const isExceedBalance = isValidAmount && hasSelectedToken && amountNum > formattedBalance;
+    
+    console.log('State calculation (DETAILED):', {
+      amount: amountNum,
+      formattedBalance: formattedBalance,
+      hasSelectedToken,
+      isExceedBalance,
+      isValidAddress,
+      isValidAmount,
+      decimals: selectedToken?.decimals,
+      tokenBalance: selectedToken?.balance,
+      tokenBalanceFormatted: selectedToken?.balance_formatted
+    });
 
-    // 如果金额有效但地址无效，返回 'needAddress'
-    if (isValidAmount && !isValidAddress) {
-      return 'needAddress';
-    }
-
-    // 如果金额无效，返回 disabled
-    if (!isValidAmount) {
-      return 'disabled';
-    }
-
-    // 如果金额和地址都有效，返回 enabled
-    if (isValidAmount && isValidAddress) {
-      return 'enabled';
-    }
-
-    return 'disabled';
+    if (!isValidAddress) return 'needAddress';
+    if (!isValidAmount) return 'disabled';
+    if (isExceedBalance) return 'warning';
+    return 'enabled';
   };
 
   // 添加地址格式化函数
@@ -545,6 +576,55 @@ export default function SendScreen({ navigation, route }) {
       ...validation
     });
   }, [amount, recipientAddress, selectedToken]);
+
+  // 修改 getTokenDetail 函数
+  const getTokenDetail = async (walletId, token) => {
+    try {
+      const deviceId = await DeviceManager.getDeviceId();
+      console.log('Getting token detail:', {
+        walletId,
+        token,
+        deviceId
+      });
+
+      // 使用 api.getTokenDetails 而不是 api.get
+      const response = await api.getTokenDetails(
+        deviceId,
+        walletId,
+        token.symbol
+      );
+      
+      console.log('Token detail response:', response);
+      return response;
+    } catch (error) {
+      console.error('获取代币详情失败:', error);
+      throw error;
+    }
+  };
+
+  const handleSend = async (transactionData) => {
+    try {
+      setIsLoading(true);
+      const response = await api.sendSolanaTransaction(selectedWallet.id, {
+        ...transactionData,
+        device_id: deviceId
+      });
+
+      if (response?.data?.transaction_hash) {
+        // 保存交易信息，包括 walletId
+        navigation.navigate('TransactionStatus', {
+          txHash: response.data.transaction_hash,
+          deviceId,
+          walletId: selectedWallet.id,
+          chain: 'SOL'
+        });
+      }
+    } catch (error) {
+      Alert.alert('Error', error.message || 'Failed to send transaction');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -574,22 +654,24 @@ export default function SendScreen({ navigation, route }) {
         >
           <View style={styles.tokenInfo}>
             {selectedToken?.logo ? (
-              <Image 
-                source={{ uri: selectedToken.logo }} 
+              <Image
+                source={{ uri: selectedToken.logo }}
                 style={styles.tokenLogo}
-                resizeMode="contain"
+                resizeMode="cover"
               />
             ) : (
               <View style={[styles.tokenLogo, styles.tokenLogoPlaceholder]} />
             )}
             <View style={styles.tokenTextContainer}>
-              <Text style={styles.tokenName}>{selectedToken?.symbol || selectedWallet?.chain}</Text>
+              <Text style={styles.tokenName}>{selectedToken?.name || 'Select Token'}</Text>
               <Text style={styles.tokenBalance}>
-                {formatBalance(selectedToken?.balance_formatted, selectedToken?.decimals)}
+                {formatBalance(selectedToken?.balance, selectedToken?.decimals)} {selectedToken?.symbol || ''}
               </Text>
             </View>
           </View>
-          <Ionicons name="chevron-forward" size={20} color="#8E8E8E" />
+          <TouchableOpacity onPress={handleTokenSelect}>
+            <Ionicons name="chevron-down" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
         </TouchableOpacity>
 
         {/* 分隔线 */}
@@ -625,7 +707,7 @@ export default function SendScreen({ navigation, route }) {
         style={[
           styles.continueButton,
           getButtonState() === 'disabled' && styles.continueButtonDisabled,
-          parseFloat(amount) > parseFloat(selectedToken?.balance_formatted || '0') && styles.continueButtonWarning,
+          getButtonState() === 'warning' && styles.continueButtonWarning,
         ]}
         onPress={() => {
           console.log('Continue button pressed');
@@ -633,11 +715,8 @@ export default function SendScreen({ navigation, route }) {
         }}
         disabled={getButtonState() !== 'enabled'}
       >
-        <Text style={[
-          styles.continueButtonText,
-          parseFloat(amount) > parseFloat(selectedToken?.balance_formatted || '0') && styles.continueButtonTextWarning
-        ]}>
-          {parseFloat(amount) > parseFloat(selectedToken?.balance_formatted || '0')
+        <Text style={styles.continueButtonText}>
+          {getButtonState() === 'warning'
             ? 'Insufficient Balance'
             : getButtonState() === 'needAddress'
               ? 'Enter Address'
@@ -646,6 +725,10 @@ export default function SendScreen({ navigation, route }) {
       </TouchableOpacity>
 
       {renderNumberPad()}
+
+      <Text style={styles.balanceText}>
+        {formatBalance(selectedToken?.balance, selectedToken?.decimals)} {selectedToken?.symbol || ''}
+      </Text>
     </SafeAreaView>
   );
 }
@@ -875,5 +958,11 @@ const styles = StyleSheet.create({
   tokenPrice: {
     color: '#8E8E8E',
     fontSize: 14,
+  },
+  balanceText: {
+    color: '#8E8E8E',
+    fontSize: 14,
+    marginTop: 10,
+    marginLeft: 20,
   },
 });

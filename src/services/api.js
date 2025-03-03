@@ -235,7 +235,7 @@ export const api = {
           params: {
             device_id: deviceId,
             page,
-            page_size: pageSize,
+            page_size: pageSize
           }
         }
       );
@@ -342,10 +342,24 @@ export const api = {
 
   getTokensManagement: async (walletId, deviceId, chain) => {
     const chainPath = getChainPath(chain);
-    if (!chainPath) return null;
-    
-    const response = await instance.get(`/${chainPath}/wallets/${walletId}/tokens/manage/?device_id=${deviceId}`);
-    return response.data;
+    try {
+      const response = await instance.get(
+        `/${chainPath}/wallets/${walletId}/tokens/manage/`,
+        {
+          params: { device_id: deviceId }
+        }
+      );
+      
+      console.log('API getTokensManagement response:', response.data);
+      
+      return {
+        status: 'success',
+        data: response.data
+      };
+    } catch (error) {
+      console.error('API getTokensManagement error:', error);
+      throw error;
+    }
   },
 
   async getPrivateKey(walletId, deviceId, password) {
@@ -415,18 +429,30 @@ export const api = {
 
   getWalletTokens: async (deviceId, walletId, chain) => {
     const chainPath = getChainPath(chain);
-    const response = await instance.get(
-      `/${chainPath}/wallets/${walletId}/tokens/`,
-      {
-        params: { device_id: deviceId }
-      }
-    );
-    
-    if (!response.data) {
-      throw new Error('Failed to get wallet tokens');
+    try {
+      console.log('Fetching wallet tokens:', { deviceId, walletId, chain, chainPath });
+      
+      const response = await instance.get(
+        `/${chainPath}/wallets/${walletId}/tokens/`,
+        {
+          params: { device_id: deviceId }
+        }
+      );
+      
+      console.log('API getWalletTokens response:', response.data);
+      
+      // 直接返回响应数据，不做额外处理
+      return {
+        status: 'success',
+        data: response.data
+      };
+    } catch (error) {
+      console.error('API getWalletTokens error:', error);
+      return {
+        status: 'error',
+        message: error.response?.data?.message || 'Failed to get tokens'
+      };
     }
-    
-    return response.data;
   },
 
   async importPrivateKey(deviceId, chain, privateKey, password) {
@@ -448,57 +474,200 @@ export const api = {
 
   async sendEvmTransaction(walletId, params) {
     try {
+      console.log('Sending EVM transaction:', {
+        walletId,
+        params
+      });
+      
+      // 确保params中包含device_id
+      if (!params.device_id) {
+        throw new Error('缺少device_id参数');
+      }
+      
       const response = await instance.post(`/evm/wallets/${walletId}/transfer/`, {
         device_id: params.device_id,
         to_address: params.to_address,
         amount: params.amount,
         payment_password: params.payment_password,
-        token_address: params.token,
+        token_address: params.token === 'native' ? null : params.token,
         gas_limit: params.gas_limit,
         gas_price: params.gas_price,
         max_priority_fee: params.max_priority_fee,
         max_fee: params.max_fee
       });
+      
       return response.data;
     } catch (error) {
       console.log('API Error Response:', error.response?.data);
       throw error.response?.data || error;
+    }
+  },
+
+  async getTransactionStatus(deviceId, txHash, walletId) {
+    if (!txHash || !deviceId || !walletId) {
+      console.warn('Missing required parameters:', { deviceId, txHash, walletId });
+      return { 
+        status: 'error', 
+        message: 'Missing required parameters' 
+      };
+    }
+    
+    console.log('Requesting transaction status for hash:', txHash);
+    try {
+      const response = await instance.get(
+        `/solana/wallets/${walletId}/transaction-status/`,
+        {
+          params: {
+            device_id: deviceId,
+            tx_hash: txHash
+          }
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Transaction status API error:', error);
+      return { 
+        status: 'error', 
+        message: error.message || 'Failed to get transaction status'
+      };
+    }
+  },
+
+  async getTokenDetails(deviceId, walletId, symbol) {
+    try {
+      const response = await instance.get(
+        `/solana/wallets/${walletId}/tokens/${symbol}/detail`,
+        {
+          params: {
+            device_id: deviceId
+          }
+        }
+      );
+      
+      if (response.data?.status === 'success') {
+        return {
+          status: 'success',
+          data: response.data.data
+        };
+      } else {
+        return {
+          status: 'error',
+          message: response.data?.message || '获取代币详情失败'
+        };
+      }
+    } catch (error) {
+      console.error('获取代币详情失败:', error);
+      return {
+        status: 'error',
+        message: error.response?.data?.message || '获取代币详情失败'
+      };
+    }
+  },
+
+  async getTokenDecimals(deviceId, walletId, tokenAddress) {
+    try {
+      const response = await this.getTokenDetails(deviceId, walletId, tokenAddress);
+      return response.status === 'success' ? response.data.decimals : null;
+    } catch (error) {
+      console.error('获取代币精度失败:', error);
+      return null;
     }
   },
 
   async sendSolanaTransaction(walletId, params) {
     try {
-      const response = await instance.post(`/solana/wallets/${walletId}/transfer/`, {
-        device_id: params.device_id,
-        to_address: params.to_address,
-        amount: params.amount,
-        token_address: params.token_address,
-        payment_password: params.payment_password
-      });
+      const response = await instance.post(
+        `/solana/wallets/${walletId}/transfer/`,
+        params
+      );
       return response.data;
     } catch (error) {
-      console.log('API Error Response:', error.response?.data);
-      throw error.response?.data || error;
+      if (error.response) {
+        throw error.response.data;
+      }
+      throw {
+        status: 'error',
+        message: 'Network error, please check your connection'
+      };
     }
   },
 
-  async sendTransaction(deviceId, walletId, transactionData) {
+  async getSolanaTokenDetail(walletId, symbol) {
     try {
-      const response = await instance.post('/transactions/send/', {
-        device_id: deviceId,
-        wallet_id: walletId,
-        recipient_address: transactionData.recipientAddress,
-        amount: transactionData.amount,
-        token_address: transactionData.contractAddress,
-        chain: transactionData.chain,
-        decimals: transactionData.decimals
-      });
-      
-      console.log('Send transaction API response:', response.data);
+      const response = await instance.get(`/solana/wallets/${walletId}/tokens/SOL/${symbol}/detail`);
       return response.data;
     } catch (error) {
-      console.error('Send transaction error:', error.response?.data || error);
+      console.error('获取代币详情失败:', error);
       throw error;
+    }
+  },
+
+  async getTransactionHistory(deviceId, walletId, chain, page = 1, pageSize = 20) {
+    try {
+      const chainPath = getChainPath(chain);
+      console.log('[API] Fetching transaction history:', {
+        chainPath,
+        walletId,
+        deviceId,
+        page,
+        pageSize
+      });
+
+      const response = await instance.get(
+        `/${chainPath}/wallets/${walletId}/token-transfers/`,
+        {
+          params: {
+            device_id: deviceId,
+            page,
+            page_size: pageSize
+          }
+        }
+      );
+
+      if (response.data?.status === 'success') {
+        return {
+          status: 'success',
+          data: {
+            transactions: response.data.data?.transfers || [],
+            total: response.data.data?.total || 0,
+            page_size: pageSize
+          }
+        };
+      } else {
+        return {
+          status: 'error',
+          message: response.data?.message || '获取交易记录失败'
+        };
+      }
+    } catch (error) {
+      console.error('[API] Transaction history error:', error);
+      return {
+        status: 'error',
+        message: error.response?.data?.message || '网络连接错误，请检查网络状态'
+      };
+    }
+  },
+
+  getTransactionStatus: async (walletId, txHash) => {
+    try {
+      const response = await instance.get(
+        `/solana/wallets/${walletId}/transaction-status/`,
+        {
+          params: {
+            device_id: await DeviceManager.getDeviceId(),
+            tx_hash: txHash
+          }
+        }
+      );
+      return response.data;
+    } catch (error) {
+      if (error.response) {
+        throw error.response.data;
+      }
+      throw {
+        status: 'error',
+        message: 'Network error, please check your connection'
+      };
     }
   },
 };
@@ -546,16 +715,41 @@ export const selectChain = async (deviceId, selectedChain) => {
 
 export const sendSolanaTransaction = async (walletId, params) => {
   try {
-    const response = await instance.post(`/solana/wallets/${walletId}/transfer/`, {
-      device_id: params.device_id,
-      to_address: params.to_address,
-      amount: params.amount,
-      token_address: params.token_address,
-      payment_password: params.payment_password
-    });
+    const response = await instance.post(
+      `/solana/wallets/${walletId}/transfer/`,
+      params
+    );
     return response.data;
   } catch (error) {
-    console.log('API Error Response:', error.response?.data);
-    throw error.response?.data || error;
+    if (error.response) {
+      throw error.response.data;
+    }
+    throw {
+      status: 'error',
+      message: 'Network error, please check your connection'
+    };
+  }
+};
+
+export const getTransactionStatus = async (walletId, txHash) => {
+  try {
+    const response = await instance.get(
+      `/solana/wallets/${walletId}/transaction-status/`,
+      {
+        params: {
+          device_id: await DeviceManager.getDeviceId(),
+          tx_hash: txHash
+        }
+      }
+    );
+    return response.data;
+  } catch (error) {
+    if (error.response) {
+      throw error.response.data;
+    }
+    throw {
+      status: 'error',
+      message: 'Network error, please check your connection'
+    };
   }
 };

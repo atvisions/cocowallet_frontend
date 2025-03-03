@@ -20,10 +20,15 @@ export const formatAmount = (amount, decimals = 4) => {
   const num = parseFloat(amount);
   if (isNaN(num)) return '0';
   
-  if (num >= 1000000) {
-    return num.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  // 对于小于0.0001的数值，保留更多小数位以显示实际值
+  if (num < 0.0001 && num > 0) {
+    return num.toFixed(Math.min(8, decimals));
   }
-  return num.toFixed(Math.min(decimals, 8));
+  
+  if (num >= 1000000) {
+    return num.toLocaleString('en-US', { maximumFractionDigits: decimals });
+  }
+  return num.toFixed(decimals);
 };
 
 /**
@@ -36,4 +41,4 @@ export const formatUSDValue = (value) => {
   const num = parseFloat(value);
   if (isNaN(num)) return '$0.00';
   return `$${num.toFixed(2)}`;
-}; 
+};

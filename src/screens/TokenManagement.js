@@ -46,9 +46,10 @@ const TokenManagement = ({ route, navigation }) => {
   const [loading, setLoading] = useState(true);
   const [loadingTokenId, setLoadingTokenId] = useState(null);
   const { onTokenVisibilityChanged } = route.params || {};  // 从路由参数中获取回调
+  const [failedImages, setFailedImages] = useState(new Set());
 
   // 添加缓存时间常量
-  const CACHE_DURATION = 5 * 60 * 1000; // 5分钟
+  const CACHE_DURATION = 30 * 1000; // 30秒
 
   const loadTokens = async (forceRefresh = false) => {
     try {
@@ -56,37 +57,58 @@ const TokenManagement = ({ route, navigation }) => {
       const deviceId = await DeviceManager.getDeviceId();
       
       // 检查缓存
-      const cacheKey = `token_visibility_${selectedWallet.id}`;
+      const cacheKey = `token_management_${selectedWallet.id}`;
       const cachedData = await AsyncStorage.getItem(cacheKey);
 
       // 如果有缓存且未过期且不是强制刷新
       if (!forceRefresh && cachedData) {
         const { tokens: cachedTokens, timestamp } = JSON.parse(cachedData);
         if (Date.now() - timestamp < CACHE_DURATION) {
-          console.log('Using cached token data');
+          console.log('Using cached token data:', cachedTokens);
           setTokens(cachedTokens);
           setLoading(false);
           return;
         }
       }
 
-      // 如果没有缓存或缓存过期，请求新数据
+      // 使用 getTokensManagement 而不是 getWalletTokens
       const response = await api.getTokensManagement(
         selectedWallet.id, 
         deviceId, 
         selectedWallet.chain
       );
 
-      if (response?.status === 'success') {
-        const newTokens = response.data.tokens || response.data;
-        if (Array.isArray(newTokens)) {
-          setTokens(newTokens);
-          // 更新缓存
-          await AsyncStorage.setItem(cacheKey, JSON.stringify({
-            tokens: newTokens,
-            timestamp: Date.now()
-          }));
+      console.log('API Response:', response);
+
+      if (response?.status === 'success' && response.data) {
+        let newTokens = [];
+        
+        // 处理嵌套的数据结构
+        if (response.data?.data?.tokens) {
+          newTokens = response.data.data.tokens;
+        } else if (response.data?.tokens) {
+          newTokens = response.data.tokens;
         }
+
+        // 确保每个代币都有必要的字段
+        newTokens = newTokens.map(token => ({
+          token_address: token.token_address || token.address,
+          name: token.name || 'Unknown Token',
+          symbol: token.symbol || '',
+          logo: token.logo || 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
+          is_visible: typeof token.is_visible === 'boolean' ? token.is_visible : true,
+        }));
+
+        console.log('Processed tokens:', newTokens);
+        setTokens(newTokens);
+        
+        // 更新缓存
+        await AsyncStorage.setItem(cacheKey, JSON.stringify({
+          tokens: newTokens,
+          timestamp: Date.now()
+        }));
+      } else {
+        console.error('Invalid response format:', response);
       }
     } catch (error) {
       console.error('Failed to load tokens:', error);
@@ -115,14 +137,14 @@ const TokenManagement = ({ route, navigation }) => {
       if (response?.status === 'success') {
         // 更新本地状态
         const updatedTokens = tokens.map(token => 
-          token.address === tokenAddress 
+          token.token_address === tokenAddress 
             ? { ...token, is_visible: !token.is_visible }
             : token
         );
         setTokens(updatedTokens);
 
         // 更新缓存
-        const cacheKey = `token_visibility_${selectedWallet.id}`;
+        const cacheKey = `token_management_${selectedWallet.id}`;
         await AsyncStorage.setItem(cacheKey, JSON.stringify({
           tokens: updatedTokens,
           timestamp: Date.now()
@@ -164,6 +186,10 @@ const TokenManagement = ({ route, navigation }) => {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#1FC595" />
         </View>
+      ) : tokens.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No tokens found</Text>
+        </View>
       ) : (
         <FlatList
           data={tokens}
@@ -171,27 +197,37 @@ const TokenManagement = ({ route, navigation }) => {
             <View style={styles.tokenItem}>
               <View style={styles.tokenLeftContent}>
                 <Image 
-                  source={{ uri: item.logo }} 
-                  style={styles.tokenLogo}
+                  source={{ 
+                    uri: failedImages.has(item.token_address) 
+                      ? 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png'
+                      : (item.logo || 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png')
+                  }}
+                  style={[
+                    styles.tokenLogo,
+                    failedImages.has(item.token_address) && styles.placeholderLogo
+                  ]}
+                  onError={() => {
+                    setFailedImages(prev => new Set([...prev, item.token_address]));
+                  }}
                 />
                 <View style={styles.tokenInfo}>
-                  <Text style={styles.tokenName}>{item.name}</Text>
-                  <Text style={styles.tokenSymbol}>{item.symbol}</Text>
+                  <Text style={styles.tokenName}>{item.name || 'Unknown Token'}</Text>
+                  <Text style={styles.tokenSymbol}>{item.symbol || ''}</Text>
                 </View>
               </View>
-              {loadingTokenId === item.address ? (
+              {loadingTokenId === item.token_address ? (
                 <View style={[styles.switchContainer, { backgroundColor: item.is_visible ? '#1FC595' : 'rgba(255, 255, 255, 0.1)' }]}>
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 </View>
               ) : (
                 <ToggleSwitch 
                   value={item.is_visible}
-                  onToggle={() => toggleVisibility(item.address)}
+                  onToggle={() => toggleVisibility(item.token_address)}
                 />
               )}
             </View>
           )}
-          keyExtractor={item => item.address}
+          keyExtractor={item => item.token_address}
           contentContainerStyle={styles.listContainer}
         />
       )}
@@ -270,6 +306,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  emptyText: {
+    color: '#8E8E8E',
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  placeholderLogo: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });
 
-export default TokenManagement; 
+export default TokenManagement;

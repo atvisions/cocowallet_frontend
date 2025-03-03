@@ -8,6 +8,8 @@ import {
   Image,
   RefreshControl,
   SafeAreaView,
+  ActivityIndicator,
+  TextInput
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../services/api';
@@ -16,52 +18,41 @@ import { useWallet } from '../../contexts/WalletContext';
 import Header from '../../components/common/Header';
 
 export default function TokenListScreen({ navigation, route }) {
-  const { selectedWallet } = useWallet();
-  const [tokens, setTokens] = useState(route.params?.tokens || []);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const { onSelect } = route.params || {};
+  const { tokens = [], onSelect } = route.params || {};
+  const [filteredTokens, setFilteredTokens] = useState(tokens);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  useEffect(() => {
+    if (tokens.length > 0) {
+      setFilteredTokens(tokens);
+    }
+  }, [tokens]);
 
   useEffect(() => {
-    loadTokens();
-  }, []);
-
-  const loadTokens = async () => {
-    if (!selectedWallet?.id) return;
-
-    try {
-      setIsLoading(true);
-      const deviceId = await DeviceManager.getDeviceId();
-      const response = await api.getWalletTokens(
-        deviceId,
-        selectedWallet.id,
-        selectedWallet.chain
+    if (searchQuery.trim() === '') {
+      setFilteredTokens(tokens);
+    } else {
+      const query = searchQuery.toLowerCase();
+      const filtered = tokens.filter(token => 
+        token.symbol.toLowerCase().includes(query) || 
+        token.name.toLowerCase().includes(query) ||
+        token.address.toLowerCase().includes(query)
       );
-
-      if (response?.data?.tokens) {
-        setTokens(response.data.tokens);
-      }
-    } catch (error) {
-      console.error('Failed to load tokens:', error);
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      setFilteredTokens(filtered);
     }
-  };
-
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    loadTokens();
-  };
+  }, [searchQuery, tokens]);
 
   const handleTokenSelect = (token) => {
-    console.log('TokenListScreen - handleTokenSelect called with token:', token);
     if (onSelect) {
-      console.log('TokenListScreen - Calling onSelect callback');
       onSelect(token);
-      console.log('TokenListScreen - onSelect callback completed');
+      navigation.goBack();
     }
-    navigation.goBack();
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(false);
   };
 
   const renderTokenItem = ({ item }) => (
@@ -69,29 +60,29 @@ export default function TokenListScreen({ navigation, route }) {
       style={styles.tokenItem}
       onPress={() => handleTokenSelect(item)}
     >
-      <Image 
-        source={{ uri: item.logo }}
-        style={styles.tokenLogo}
-        defaultSource={require('../../../assets/default-token.png')}
-      />
       <View style={styles.tokenInfo}>
-        <View style={styles.tokenHeader}>
-          <Text style={styles.tokenName}>{item.name}</Text>
-          <Text style={styles.tokenValue}>${Number(item.value_usd).toFixed(2)}</Text>
-        </View>
+        <Image 
+          source={{ uri: item.logo || 'https://via.placeholder.com/40' }} 
+          style={styles.tokenLogo}
+        />
         <View style={styles.tokenDetails}>
-          <View style={styles.tokenBalanceContainer}>
-            <Text style={styles.tokenBalance}>
-              {Number(item.balance_formatted).toFixed(4)} {item.symbol}
-            </Text>
-            <View style={styles.chainBadge}>
-              <Text style={styles.chainName}>{item.chain || selectedWallet?.chain}</Text>
-            </View>
-          </View>
-          <Text style={[styles.priceChange, { color: item.price_change_24h >= 0 ? '#1FC595' : '#FF4B55' }]}>
-            {item.price_change_24h >= 0 ? '+' : ''}{item.price_change_24h}%
-          </Text>
+          <Text style={styles.tokenSymbol}>{item.symbol}</Text>
+          <Text style={styles.tokenName}>{item.name}</Text>
         </View>
+      </View>
+      <View style={styles.balanceContainer}>
+        <Text style={styles.tokenBalance}>
+          {parseFloat(item.balance_formatted).toLocaleString(undefined, {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 6
+          })}
+        </Text>
+        <Text style={styles.tokenValue}>
+          ${(parseFloat(item.balance_formatted) * parseFloat(item.price_usd || 0)).toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          })}
+        </Text>
       </View>
     </TouchableOpacity>
   );
@@ -99,23 +90,48 @@ export default function TokenListScreen({ navigation, route }) {
   return (
     <SafeAreaView style={styles.container}>
       <Header 
-        title="Token List"
+        title="Select Token" 
         onBack={() => navigation.goBack()}
       />
-      <FlatList
-        data={tokens}
-        renderItem={renderTokenItem}
-        keyExtractor={item => `${item.chain}_${item.address}`}
-        contentContainerStyle={styles.listContainer}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            tintColor="#1FC595"
-            colors={['#1FC595']}
-          />
-        }
-      />
+      
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={20} color="#AAAAAA" style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search tokens"
+          placeholderTextColor="#8E8E8E"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          autoCapitalize="none"
+          color="#DDDDDD"
+        />
+      </View>
+      
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>Loading tokens...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredTokens}
+          renderItem={renderTokenItem}
+          keyExtractor={item => item.address}
+          contentContainerStyle={styles.listContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={["#007AFF"]}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No tokens found</Text>
+            </View>
+          }
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -123,18 +139,22 @@ export default function TokenListScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#171C32',
+    backgroundColor: '#1A1F3D',
   },
   listContainer: {
     padding: 16,
   },
   tokenItem: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#272C52',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#272C52',
+  },
+  tokenInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   tokenLogo: {
     width: 40,
@@ -142,53 +162,66 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginRight: 12,
   },
-  tokenInfo: {
-    flex: 1,
+  tokenDetails: {
+    justifyContent: 'center',
   },
-  tokenHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
+  tokenSymbol: {
+    fontSize: 16,
+    color: '#DDDDDD',
+    fontWeight: 'normal',
   },
   tokenName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
+    fontSize: 14,
+    color: '#AAAAAA',
+    fontWeight: 'normal',
   },
-  tokenValue: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  tokenDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  balanceContainer: {
+    alignItems: 'flex-end',
   },
   tokenBalance: {
+    fontSize: 16,
+    color: '#DDDDDD',
+    fontWeight: 'normal',
+  },
+  tokenValue: {
     fontSize: 14,
     color: '#8E8E8E',
+    textAlign: 'right',
   },
-  priceChange: {
-    fontSize: 14,
-    fontWeight: '500',
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  tokenBalanceContainer: {
+  loadingText: {
+    color: '#DDDDDD',
+    marginTop: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  emptyText: {
+    color: '#DDDDDD',
+    fontSize: 16,
+  },
+  searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#272C52',
+  },
+  searchIcon: {
+    marginRight: 8,
+    color: '#AAAAAA',
+  },
+  searchInput: {
     flex: 1,
-  },
-  chainBadge: {
-    backgroundColor: 'rgba(31, 197, 149, 0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginLeft: 8,
-  },
-  chainName: {
-    color: '#1FC595',
-    fontSize: 12,
-    fontWeight: '500',
+    padding: 8,
+    backgroundColor: '#1A1F3D',
+    borderRadius: 8,
+    color: '#DDDDDD',
   },
 });

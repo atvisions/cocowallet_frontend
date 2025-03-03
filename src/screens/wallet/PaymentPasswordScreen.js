@@ -81,11 +81,7 @@ export default function PaymentPasswordScreen({ route, navigation }) {
 
       if (response.status === 'success') {
         console.log('Password verification successful, executing callback...');
-        if (route.params?.onSuccess) {
-          console.log('Calling onSuccess callback with password');
-          route.params.onSuccess(password);
-        }
-        handleVerifySuccess(password);
+        handlePasswordVerified(password);
       } else {
         Alert.alert('Error', response.message || 'Password verification failed');
         setPassword('');
@@ -99,43 +95,26 @@ export default function PaymentPasswordScreen({ route, navigation }) {
     }
   };
 
-  const handleVerifySuccess = async (password) => {
-    const { purpose, nextScreen, transactionData } = route.params;
-
-    if (purpose === 'send_transaction' && nextScreen === 'SendConfirmation') {
-      try {
-        const deviceId = await DeviceManager.getDeviceId();
-        
-        // 准备完整的交易数据
-        const sendData = {
-          ...transactionData,
-          deviceId,
-          password,
-          // 确保必要的字段都存在
-          chain: transactionData.chain,
-          walletId: transactionData.walletId,
-          recipientAddress: transactionData.recipientAddress,
-          amount: transactionData.amount,
-          token: transactionData.token,
-        };
-
-        console.log('Preparing transaction with data:', {
-          ...sendData,
-          password: '******' // 日志中隐藏密码
-        });
-
-        // 导航到交易加载页面
-        navigation.replace('TransactionLoading', {
-          message: 'Processing transaction...',
-          sendData
-        });
-
-      } catch (error) {
-        console.error('Transaction preparation error:', error);
-        Alert.alert('Error', 'Failed to prepare transaction');
-        navigation.goBack();
-      }
+  const handlePasswordVerified = (password) => {
+    console.log('Password verification successful, executing callback...');
+    
+    if (route.params?.purpose === 'send_transaction') {
+      const { transactionData, nextScreen } = route.params;
+      
+      // 确保 transactionData 包含所有必要的信息
+      console.log('Transaction data:', transactionData);
+      
+      // 导航到交易加载页面
+      navigation.navigate(nextScreen || 'TransactionLoading', {
+        ...transactionData,
+        password: password // 添加密码到参数中
+      });
+    } else if (route.params?.onSuccess) {
+      // 执行其他成功回调
+      route.params.onSuccess(password);
+      navigation.goBack();
     } else {
+      // 默认行为
       navigation.goBack();
     }
   };

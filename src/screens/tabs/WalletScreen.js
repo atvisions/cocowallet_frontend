@@ -47,11 +47,7 @@ const WalletScreen = ({ navigation }) => {
         walletName: selectedWallet.name,
         avatarUrl: selectedWallet.avatar
       });
-      loadCachedData().then(hasCachedData => {
-        if (!hasCachedData) {
-          loadTokens(true);
-        }
-      });
+      loadTokens(true);
     }
   }, [selectedWallet]);
 
@@ -106,31 +102,6 @@ const WalletScreen = ({ navigation }) => {
     }
   };
 
-  const loadCachedData = async () => {
-    try {
-      if (!selectedWallet) return false;
-      
-      console.log('Trying to load cached data for wallet:', selectedWallet.id);
-      const cachedTokens = await AsyncStorage.getItem(`tokens_${selectedWallet.id}`);
-      if (cachedTokens) {
-        const { data, timestamp } = JSON.parse(cachedTokens);
-        if (Date.now() - timestamp < 5 * 60 * 1000) {
-          console.log('Using cached token data');
-          setTokens(data.tokens || []);
-          setTotalBalance(data.total_value_usd || '0.00');
-          if (data.price_change_24h) {
-            setChange24h(parseFloat(data.price_change_24h));
-          }
-          return true;
-        }
-      }
-      return false;
-    } catch (error) {
-      console.error('Failed to load cached data:', error);
-      return false;
-    }
-  };
-
   const loadTokens = async (showLoading = true) => {
     if (!selectedWallet?.id) return;
     
@@ -141,26 +112,32 @@ const WalletScreen = ({ navigation }) => {
       setError(null);
 
       const deviceId = await DeviceManager.getDeviceId();
+      console.log('Loading tokens for wallet:', {
+        deviceId,
+        walletId: selectedWallet.id,
+        chain: selectedWallet.chain
+      });
+
       const response = await api.getWalletTokens(
         deviceId,
         selectedWallet.id,
         selectedWallet.chain
       );
 
-      if (response?.data) {
-        setTokens(response.data.tokens || []);
-        setTotalBalance(response.data.total_value_usd || '0.00');
-        if (response.data.price_change_24h) {
-          setChange24h(parseFloat(response.data.price_change_24h));
-        }
+      console.log('Token response:', response);
 
-        await AsyncStorage.setItem(
-          `tokens_${selectedWallet.id}`,
-          JSON.stringify({
-            data: response.data,
-            timestamp: Date.now()
-          })
-        );
+      if (response?.status === 'success' && response.data?.data) {
+        const { tokens, total_value_usd } = response.data.data;
+        
+        // 只显示 is_visible 为 true 的代币
+        const visibleTokens = tokens.filter(token => token.is_visible);
+        console.log('Visible tokens:', visibleTokens);
+        
+        setTokens(visibleTokens);
+        setTotalBalance(total_value_usd || '0.00');
+      } else {
+        console.error('Invalid token response:', response);
+        setError('Failed to load tokens');
       }
     } catch (error) {
       console.error('Failed to load tokens:', error);
@@ -173,7 +150,8 @@ const WalletScreen = ({ navigation }) => {
 
   const handleRefresh = () => {
     setIsRefreshing(true);
-    loadTokens(false);
+    // 强制刷新，不使用缓存
+    loadTokens(true);
   };
 
   const formatChange = (change) => {
@@ -181,31 +159,85 @@ const WalletScreen = ({ navigation }) => {
     return `${prefix}${change.toFixed(2)}%`;
   };
 
-  const renderTokenItem = ({ item }) => (
-    <View style={styles.tokenItem}>
-      <Image 
-        source={{ uri: item.logo }}
-        style={styles.tokenLogo}
-      />
-      <View style={styles.tokenInfo}>
-        <View style={styles.tokenHeader}>
-          <Text style={styles.tokenName}>{item.name}</Text>
-          <Text style={styles.tokenValue}>${Number(item.value_usd).toFixed(2)}</Text>
-        </View>
-        <View style={styles.tokenDetails}>
-          <Text style={styles.tokenBalance}>
-            {Number(item.balance_formatted).toFixed(4)} {item.symbol}
-          </Text>
-          <Text style={[
-            styles.priceChange,
-            { color: item.price_change_24h.startsWith('+') ? '#1FC595' : '#FF4B55' }
-          ]}>
-            {item.price_change_24h}
-          </Text>
+  const renderTokenItem = ({ item }) => {
+    // 格式化代币余额
+    const formatTokenBalance = (balance) => {
+      if (!balance) return '0';
+      
+      const num = parseFloat(balance);
+      if (isNaN(num)) return '0';
+
+      // 如果是整数，直接返回
+      if (Number.isInteger(num)) {
+        return num.toLocaleString();
+      }
+
+      // 如果是小数，最多显示4位小数
+      return num.toLocaleString(undefined, {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 4,
+        useGrouping: true
+      });
+    };
+
+    // 格式化代币价值
+    const formatTokenValue = (value) => {
+      if (!value) return '$0.00';
+      const num = parseFloat(value);
+      if (isNaN(num)) return '$0.00';
+
+      // 如果价值小于 0.01，显示更多小数位
+      if (num < 0.01) {
+        return `$${num.toFixed(8)}`;
+      }
+      // 如果价值小于 1，显示 4 位小数
+      if (num < 1) {
+        return `$${num.toFixed(4)}`;
+      }
+      // 其他情况显示 2 位小数
+      return `$${num.toFixed(2)}`;
+    };
+
+    // 格式化价格变化
+    const formatPriceChange = (change) => {
+      if (!change) return '+0.00%';
+      const num = parseFloat(change);
+      if (isNaN(num)) return '+0.00%';
+      const prefix = num >= 0 ? '+' : '';
+      return `${prefix}${num.toFixed(2)}%`;
+    };
+
+    const priceChange = formatPriceChange(item.price_change_24h);
+    const isPositiveChange = priceChange.startsWith('+');
+
+    return (
+      <View style={styles.tokenItem}>
+        <Image 
+          source={{ uri: item.logo }}
+          style={styles.tokenLogo}
+        />
+        <View style={styles.tokenInfo}>
+          <View style={styles.tokenHeader}>
+            <Text style={styles.tokenName}>{item.name}</Text>
+            <Text style={styles.tokenValue}>
+              {formatTokenValue(item.value_usd)}
+            </Text>
+          </View>
+          <View style={styles.tokenDetails}>
+            <Text style={styles.tokenBalance}>
+              {formatTokenBalance(item.balance)} {item.symbol}
+            </Text>
+            <Text style={[
+              styles.priceChange,
+              { color: isPositiveChange ? '#1FC595' : '#FF4B55' }
+            ]}>
+              {priceChange}
+            </Text>
+          </View>
         </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   const renderError = () => {
     if (!error) return null;
@@ -482,7 +514,27 @@ const WalletScreen = ({ navigation }) => {
   
           <TouchableOpacity 
             style={styles.actionButton}
-            onPress={() => navigation.navigate('History', { selectedWallet })}
+            onPress={async () => {
+              try {
+                if (!selectedWallet?.id) {
+                  Alert.alert('错误', '钱包信息不完整');
+                  return;
+                }
+                const deviceId = await DeviceManager.getDeviceId();
+                
+                const params = {
+                  deviceId,
+                  walletId: selectedWallet.id,
+                  chain: selectedWallet.chain?.toLowerCase()
+                };
+
+                console.log('History params:', params);
+                navigation.navigate('History', params);
+              } catch (error) {
+                console.error('Navigation error:', error);
+                Alert.alert('错误', '无法访问交易历史');
+              }
+            }}
           >
             <LinearGradient
               colors={['#3B82F6', '#2563EB']}

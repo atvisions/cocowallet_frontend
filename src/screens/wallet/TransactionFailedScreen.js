@@ -12,7 +12,14 @@ export default function TransactionFailedScreen({ route, navigation }) {
   const { error } = route.params;
 
   const handleTryAgain = () => {
-    navigation.goBack();
+    // 返回到交易确认页面，保留之前的交易信息
+    navigation.navigate('SendConfirmation', {
+      selectedWallet: route.params.selectedWallet,
+      recipientAddress: route.params.recipientAddress,
+      amount: route.params.amount,
+      token: route.params.token,
+      tokenInfo: route.params.tokenInfo
+    });
   };
 
   return (
@@ -74,4 +81,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-}); 
+});

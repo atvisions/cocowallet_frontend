@@ -67,25 +67,41 @@ export default function SendConfirmationScreen({ navigation, route }) {
     setIsProcessing(true);
     
     console.log('Navigating to password verification...');
-    navigation.navigate('MainStack', {
-      screen: 'PaymentPassword',
-      params: {
-        title: 'Confirm Transaction',
-        purpose: 'send_transaction',
-        onSuccess: (password) => {
+    navigation.navigate('PaymentPassword', {
+      title: 'Confirm Transaction',
+      purpose: 'send_transaction',
+      onSuccess: async (password) => {
+        try {
+          console.log('Password verification successful, proceeding with transaction...');
+          const deviceId = await DeviceManager.getDeviceId();
+          // 先检查网络连接
+          const response = await api.getWalletTokens(deviceId, selectedWallet.id, selectedWallet.chain);
+          
+          if (response?.data) {
+            navigation.replace('TransactionLoading', {
+              recipientAddress,
+              amount,
+              token,
+              tokenInfo,
+              selectedWallet,
+              password
+            });
+          }
+        } catch (error) {
+          console.error('Transaction preparation error:', error);
           setIsProcessing(false);
-          navigation.replace('TransactionLoading', {
-            recipientAddress,
-            amount,
-            token,
-            tokenInfo,
-            selectedWallet,
-            password
-          });
-        },
-        onCancel: () => {
-          setIsProcessing(false);
+          Alert.alert(
+            'Network Error',
+            'Please check your network connection and try again',
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => setIsProcessing(false) },
+              { text: 'Retry', onPress: () => handleConfirm() }
+            ]
+          );
         }
+      },
+      onCancel: () => {
+        setIsProcessing(false);
       }
     });
   };

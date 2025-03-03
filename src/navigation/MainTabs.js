@@ -30,6 +30,7 @@ import TransactionSuccessScreen from '../screens/wallet/TransactionSuccessScreen
 import TransactionFailedScreen from '../screens/wallet/TransactionFailedScreen';
 import HistoryScreen from '../screens/wallet/HistoryScreen';
 import ReceiveScreen from '../screens/wallet/ReceiveScreen';
+import TransactionDetailScreen from '../screens/wallet/TransactionDetailScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -148,6 +149,12 @@ const TabScreens = () => {
       tabBar={props => <CustomTabBar {...props} />}
       screenOptions={{
         headerShown: false,
+        tabBarStyle: {
+          backgroundColor: '#171C32',
+          borderTopWidth: 0,
+          elevation: 0,
+          shadowOpacity: 0,
+        },
       }}
     >
       <Tab.Screen 
@@ -222,6 +229,7 @@ const MainStack = () => {
       <Stack.Screen name="TransactionFailed" component={TransactionFailedScreen} />
       <Stack.Screen name="History" component={HistoryScreen} />
       <Stack.Screen name="Receive" component={ReceiveScreen} />
+      <Stack.Screen name="TransactionDetail" component={TransactionDetailScreen} />
     </Stack.Navigator>
   );
 };
