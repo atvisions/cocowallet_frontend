@@ -7,7 +7,7 @@ const BASE_URL = 'http://192.168.3.16:8000/api/v1';
 // 创建 axios 实例
 const instance = axios.create({
   baseURL: BASE_URL,
-  timeout: 10000,
+  timeout: 60000,  // 增加超时时间到60秒
   headers: {
     'Content-Type': 'application/json',
   }
@@ -504,16 +504,13 @@ export const api = {
   },
 
   async getTransactionStatus(deviceId, txHash, walletId) {
-    if (!txHash || !deviceId || !walletId) {
-      console.warn('Missing required parameters:', { deviceId, txHash, walletId });
-      return { 
-        status: 'error', 
-        message: 'Missing required parameters' 
-      };
-    }
-    
-    console.log('Requesting transaction status for hash:', txHash);
     try {
+      console.log('Requesting transaction status:', {
+        deviceId,
+        txHash,
+        walletId
+      });
+
       const response = await instance.get(
         `/solana/wallets/${walletId}/transaction-status/`,
         {
@@ -523,12 +520,20 @@ export const api = {
           }
         }
       );
+
+      console.log('Transaction status response:', response.data);
       return response.data;
     } catch (error) {
-      console.error('Transaction status API error:', error);
-      return { 
-        status: 'error', 
-        message: error.message || 'Failed to get transaction status'
+      console.error('Transaction status error:', error);
+      if (error.response?.status === 404) {
+        return {
+          status: 'pending',
+          message: '交易确认中，请稍后再试'
+        };
+      }
+      return {
+        status: 'error',
+        message: '网络错误，请检查网络连接'
       };
     }
   },
@@ -576,25 +581,49 @@ export const api = {
 
   async sendSolanaTransaction(walletId, params) {
     try {
+      console.log('发送 Solana 交易请求:', {
+        walletId,
+        params: {
+          ...params,
+          payment_password: '***' // 隐藏密码
+        },
+        url: `/solana/wallets/${walletId}/transfer/`
+      });
+
       const response = await instance.post(
         `/solana/wallets/${walletId}/transfer/`,
         params
       );
+
+      console.log('Solana 交易响应:', response.data);
       return response.data;
     } catch (error) {
+      console.error('Solana 交易错误:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        error: error.message
+      });
+      
       if (error.response) {
         throw error.response.data;
       }
       throw {
         status: 'error',
-        message: 'Network error, please check your connection'
+        message: '网络错误，请检查网络连接'
       };
     }
   },
 
-  async getSolanaTokenDetail(walletId, symbol) {
+  async getSolanaTokenDetail(deviceId, walletId, tokenAddress) {
     try {
-      const response = await instance.get(`/solana/wallets/${walletId}/tokens/SOL/${symbol}/detail`);
+      const response = await instance.get(
+        `/solana/wallets/${walletId}/tokens/SOL/${tokenAddress}/detail`,
+        {
+          params: {
+            device_id: deviceId
+          }
+        }
+      );
       return response.data;
     } catch (error) {
       console.error('获取代币详情失败:', error);
@@ -644,29 +673,6 @@ export const api = {
       return {
         status: 'error',
         message: error.response?.data?.message || '网络连接错误，请检查网络状态'
-      };
-    }
-  },
-
-  getTransactionStatus: async (walletId, txHash) => {
-    try {
-      const response = await instance.get(
-        `/solana/wallets/${walletId}/transaction-status/`,
-        {
-          params: {
-            device_id: await DeviceManager.getDeviceId(),
-            tx_hash: txHash
-          }
-        }
-      );
-      return response.data;
-    } catch (error) {
-      if (error.response) {
-        throw error.response.data;
-      }
-      throw {
-        status: 'error',
-        message: 'Network error, please check your connection'
       };
     }
   },
@@ -726,30 +732,7 @@ export const sendSolanaTransaction = async (walletId, params) => {
     }
     throw {
       status: 'error',
-      message: 'Network error, please check your connection'
-    };
-  }
-};
-
-export const getTransactionStatus = async (walletId, txHash) => {
-  try {
-    const response = await instance.get(
-      `/solana/wallets/${walletId}/transaction-status/`,
-      {
-        params: {
-          device_id: await DeviceManager.getDeviceId(),
-          tx_hash: txHash
-        }
-      }
-    );
-    return response.data;
-  } catch (error) {
-    if (error.response) {
-      throw error.response.data;
-    }
-    throw {
-      status: 'error',
-      message: 'Network error, please check your connection'
+      message: '网络错误，请检查网络连接'
     };
   }
 };

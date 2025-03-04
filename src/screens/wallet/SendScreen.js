@@ -181,21 +181,9 @@ export default function SendScreen({ navigation, route }) {
       return;
     }
 
-    // 检查余额是否足够 - 确保单位一致
+    // 检查余额是否足够
     const amountToSend = parseFloat(amount);
-    
-    // 直接比较用户输入的金额和格式化后的余额
     const formattedBalance = parseFloat(selectedToken?.balance_formatted || '0');
-    
-    console.log('Transaction amount check (DETAILED):', {
-      formattedBalance: formattedBalance,
-      amountToSend: amountToSend,
-      rawAmount: amount,
-      tokenDecimals: selectedToken?.decimals,
-      tokenBalance: selectedToken?.balance,
-      tokenBalanceFormatted: selectedToken?.balance_formatted,
-      isExceeded: amountToSend > formattedBalance
-    });
     
     if (amountToSend > formattedBalance) {
       Alert.alert('Error', 'Insufficient balance');
@@ -210,25 +198,30 @@ export default function SendScreen({ navigation, route }) {
       const transactionData = {
         wallet_id: selectedWallet.id,
         to_address: recipientAddress,
-        amount: amount, // 使用用户输入的原始金额
-        token: selectedToken?.address || 'native',
+        amount: amount,
+        token: selectedToken?.is_native ? 'native' : selectedToken?.token_address,
         device_id: deviceId,
         chain: selectedWallet.chain,
-        // 添加代币信息，以便在交易过程中使用
         token_symbol: selectedToken?.symbol,
         token_decimals: selectedToken?.decimals,
-        tokenInfo: selectedToken
+        tokenInfo: {
+          address: selectedToken?.token_address,
+          symbol: selectedToken?.symbol,
+          decimals: selectedToken?.decimals,
+          is_native: selectedToken?.is_native
+        }
       };
       
-      console.log('Transaction data prepared:', transactionData);
-      
-      // 导航到密码验证页面
-      navigation.navigate('PaymentPassword', {
-        title: 'Confirm Transaction',
-        purpose: 'send_transaction',
-        transactionData,
-        nextScreen: 'TransactionLoading'
+      // 先导航到确认页面
+      navigation.navigate('SendConfirmation', {
+        recipientAddress,
+        amount,
+        token: selectedToken?.symbol,
+        tokenInfo: transactionData.tokenInfo,
+        selectedWallet,
+        transactionData  // 传递完整的交易数据
       });
+      
     } catch (error) {
       console.error('准备交易失败:', error);
       Alert.alert('Error', 'Failed to prepare transaction');

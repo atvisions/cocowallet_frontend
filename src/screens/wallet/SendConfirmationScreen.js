@@ -15,7 +15,7 @@ import { api } from '../../services/api';
 import { DeviceManager } from '../../utils/device';
 
 export default function SendConfirmationScreen({ navigation, route }) {
-  const { recipientAddress, amount, token, tokenInfo } = route.params;
+  const { recipientAddress, amount, token, tokenInfo, transactionData } = route.params;
   const { selectedWallet } = useWallet();
   const [isProcessing, setIsProcessing] = useState(false);
   const [hasInsufficientGas, setHasInsufficientGas] = useState(false);
@@ -62,31 +62,35 @@ export default function SendConfirmationScreen({ navigation, route }) {
   };
 
   const handleConfirm = () => {
-    console.log('=== Starting transaction confirmation process ===');
-    console.log('Current state:', { isProcessing, amount, token, recipientAddress });
+    console.log('Starting confirmation with transaction data:', transactionData);
     setIsProcessing(true);
     
-    console.log('Navigating to password verification...');
+    // 检查是否是Solana链上的代币转账
+    const chainType = (tokenInfo.chain || selectedWallet.chain || '').toUpperCase();
+    const isSolana = chainType === 'SOL' || chainType === 'SOLANA';
+    
+    // 如果是Solana代币，添加创建代币账户的标志
+    if (isSolana && !tokenInfo.is_native) {
+      transactionData.create_associated_token_account = true;
+    }
+    
     navigation.navigate('PaymentPassword', {
       title: 'Confirm Transaction',
       purpose: 'send_transaction',
+      transactionData: transactionData,
       onSuccess: async (password) => {
         try {
-          console.log('Password verification successful, proceeding with transaction...');
-          const deviceId = await DeviceManager.getDeviceId();
-          // 先检查网络连接
-          const response = await api.getWalletTokens(deviceId, selectedWallet.id, selectedWallet.chain);
+          const finalTransactionData = {
+            ...transactionData,
+            password
+          };
           
-          if (response?.data) {
-            navigation.replace('TransactionLoading', {
-              recipientAddress,
-              amount,
-              token,
-              tokenInfo,
-              selectedWallet,
-              password
-            });
-          }
+          console.log('Navigating to TransactionLoading with data:', {
+            ...finalTransactionData,
+            password: '***'
+          });
+          
+          navigation.replace('TransactionLoading', finalTransactionData);
         } catch (error) {
           console.error('Transaction preparation error:', error);
           setIsProcessing(false);

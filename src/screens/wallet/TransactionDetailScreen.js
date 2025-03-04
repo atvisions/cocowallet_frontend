@@ -24,12 +24,12 @@ export default function TransactionDetailScreen({ route, navigation }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>交易信息不可用</Text>
+          <Text style={styles.errorText}>Transaction information unavailable</Text>
           <TouchableOpacity 
             style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
-            <Text style={styles.backButtonText}>返回</Text>
+            <Text style={styles.backButtonText}>Back</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -51,9 +51,9 @@ export default function TransactionDetailScreen({ route, navigation }) {
   const copyToClipboard = (text, label) => {
     Clipboard.setString(text);
     if (Platform.OS === 'android') {
-      ToastAndroid.show(`${label}已复制到剪贴板`, ToastAndroid.SHORT);
+      ToastAndroid.show(`${label} copied to clipboard`, ToastAndroid.SHORT);
     } else {
-      Alert.alert('已复制', `${label}已复制到剪贴板`);
+      Alert.alert('Copied', `${label} copied to clipboard`);
     }
   };
   
@@ -65,18 +65,20 @@ export default function TransactionDetailScreen({ route, navigation }) {
     explorerUrl = `https://explorer.solana.com/tx/${txHash}`;
     
     Linking.openURL(explorerUrl).catch(err => {
-      console.error('无法打开浏览器:', err);
-      Alert.alert('错误', '无法打开区块浏览器');
+      console.error('Unable to open browser:', err);
+      Alert.alert('Error', 'Unable to open block explorer');
     });
   };
   
   const getStatusColor = (status) => {
     switch (status) {
-      case 'SUCCESS':
+      case 'CONFIRMED':
         return '#1FC595';
       case 'FAILED':
         return '#FF5C5C';
       case 'PENDING':
+      case 'SENDING':
+      case 'CONFIRMING':
         return '#FFA500';
       default:
         return '#8E8E8E';
@@ -85,36 +87,40 @@ export default function TransactionDetailScreen({ route, navigation }) {
   
   const getStatusText = (status) => {
     switch (status) {
-      case 'SUCCESS':
-        return '成功';
+      case 'CONFIRMED':
+        return 'Confirmed';
       case 'FAILED':
-        return '失败';
+        return 'Failed';
       case 'PENDING':
-        return '处理中';
+        return 'Pending';
+      case 'SENDING':
+        return 'Sending';
+      case 'CONFIRMING':
+        return 'Confirming';
       default:
-        return '未知';
+        return 'Unknown';
     }
   };
   
   const getTransactionTypeText = (txType) => {
     switch (txType) {
       case 'TRANSFER':
-        return '转账';
+        return 'Transfer';
       case 'SWAP':
-        return '兑换';
+        return 'Swap';
       default:
-        return txType || '未知';
+        return txType || 'Unknown';
     }
   };
   
   const getDirectionText = (direction) => {
     switch (direction) {
       case 'SENT':
-        return '发送';
+        return 'Sent';
       case 'RECEIVED':
-        return '接收';
+        return 'Received';
       default:
-        return direction || '未知';
+        return direction || 'Unknown';
     }
   };
   
@@ -139,7 +145,7 @@ export default function TransactionDetailScreen({ route, navigation }) {
         >
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>交易详情</Text>
+        <Text style={styles.headerTitle}>Transaction Details</Text>
         <View style={styles.placeholder} />
       </View>
       
@@ -173,17 +179,17 @@ export default function TransactionDetailScreen({ route, navigation }) {
         
         <View style={styles.detailsSection}>
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>交易类型</Text>
+            <Text style={styles.detailLabel}>Transaction Type</Text>
             <Text style={styles.detailValue}>
               {getTransactionTypeText(transaction.tx_type)} ({getDirectionText(transaction.direction)})
             </Text>
           </View>
           
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>发送方</Text>
+            <Text style={styles.detailLabel}>From</Text>
             <TouchableOpacity 
               style={styles.copyContainer}
-              onPress={() => copyToClipboard(transaction.from_address, '发送方地址')}
+              onPress={() => copyToClipboard(transaction.from_address, 'Sender address')}
             >
               <Text style={styles.detailValue}>{formatAddress(transaction.from_address)}</Text>
               <Ionicons name="copy-outline" size={16} color="#8E8E8E" style={styles.copyIcon} />
@@ -191,10 +197,10 @@ export default function TransactionDetailScreen({ route, navigation }) {
           </View>
           
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>接收方</Text>
+            <Text style={styles.detailLabel}>To</Text>
             <TouchableOpacity 
               style={styles.copyContainer}
-              onPress={() => copyToClipboard(transaction.to_address, '接收方地址')}
+              onPress={() => copyToClipboard(transaction.to_address, 'Recipient address')}
             >
               <Text style={styles.detailValue}>{formatAddress(transaction.to_address)}</Text>
               <Ionicons name="copy-outline" size={16} color="#8E8E8E" style={styles.copyIcon} />
@@ -202,10 +208,10 @@ export default function TransactionDetailScreen({ route, navigation }) {
           </View>
           
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>交易哈希</Text>
+            <Text style={styles.detailLabel}>Transaction Hash</Text>
             <TouchableOpacity 
               style={styles.copyContainer}
-              onPress={() => copyToClipboard(transaction.tx_hash, '交易哈希')}
+              onPress={() => copyToClipboard(transaction.tx_hash, 'Transaction hash')}
             >
               <Text style={styles.detailValue}>{formatAddress(transaction.tx_hash)}</Text>
               <Ionicons name="copy-outline" size={16} color="#8E8E8E" style={styles.copyIcon} />
@@ -213,14 +219,14 @@ export default function TransactionDetailScreen({ route, navigation }) {
           </View>
           
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>交易时间</Text>
+            <Text style={styles.detailLabel}>Transaction Time</Text>
             <Text style={styles.detailValue}>
               {formatFullDate(transaction.block_timestamp || transaction.created_at)}
             </Text>
           </View>
           
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Gas 费用</Text>
+            <Text style={styles.detailLabel}>Gas Fee</Text>
             <Text style={styles.detailValue}>
               {transaction.gas_fee || (transaction.gas_price * transaction.gas_used)} SOL
             </Text>
@@ -231,7 +237,7 @@ export default function TransactionDetailScreen({ route, navigation }) {
           style={styles.explorerButton}
           onPress={() => openExplorer(transaction.tx_hash)}
         >
-          <Text style={styles.explorerButtonText}>在区块浏览器中查看</Text>
+          <Text style={styles.explorerButtonText}>View in Block Explorer</Text>
           <Ionicons name="open-outline" size={16} color="#FFFFFF" />
         </TouchableOpacity>
       </ScrollView>
@@ -374,4 +380,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-}); 
+});

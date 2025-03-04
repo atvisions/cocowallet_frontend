@@ -55,83 +55,55 @@ export default function TransactionLoadingScreen({ navigation, route }) {
 
   const sendTransaction = async () => {
     try {
-      // 从路由参数中获取交易数据
-      const transactionData = route.params;
-      const password = transactionData.password;
+      const transactionData = route?.params;
+      if (!transactionData) {
+        throw new Error('Missing transaction data');
+      }
+
+      const { amount, token, tokenInfo, selectedWallet, wallet_id } = transactionData;
       
-      console.log('Starting transaction with data:', {
-        ...transactionData,
-        password: '******' // 隐藏密码
-      });
-      
-      if (!transactionData || !password) {
-        throw new Error('Missing transaction data or password');
+      // 确保有钱包信息
+      if (!selectedWallet && !wallet_id) {
+        console.error('Transaction data:', transactionData);
+        throw new Error('Missing wallet information');
       }
       
-      setTransactionStep('CREATING');
+      // 如果没有selectedWallet对象但有wallet_id，构造必要的钱包信息
+      const effectiveWallet = selectedWallet || {
+        id: wallet_id,
+        chain: transactionData.chain || 'SOL'
+      };
       
-      // 根据链类型选择不同的发送方法
-      let response;
-      try {
-        if (transactionData.chain === 'SOL') {
-          console.log('Sending Solana transaction:', {
-            walletId: transactionData.wallet_id,
-            params: {
-              device_id: transactionData.device_id,
-              to_address: transactionData.to_address,
-              amount: transactionData.amount,
-              payment_password: password,
-              token: transactionData.token
-            }
-          });
-          
-          response = await api.sendSolanaTransaction(
-            transactionData.wallet_id, 
-            {
-              device_id: transactionData.device_id,
-              to_address: transactionData.to_address,
-              amount: transactionData.amount,
-              payment_password: password,
-              token: transactionData.token
-            }
-          );
-        } else {
-          console.log('Sending EVM transaction:', {
-            walletId: transactionData.wallet_id,
-            params: {
-              device_id: transactionData.device_id,
-              to_address: transactionData.to_address,
-              amount: transactionData.amount,
-              payment_password: password,
-              token: transactionData.token
-            }
-          });
-          
-          response = await api.sendEvmTransaction(
-            transactionData.wallet_id, 
-            {
-              device_id: transactionData.device_id,
-              to_address: transactionData.to_address,
-              amount: transactionData.amount,
-              payment_password: password,
-              token: transactionData.token
-            }
-          );
-        }
-        
-        console.log('Transaction response:', response);
-      } catch (error) {
-        console.log('API Error Response:', error);
-        
-        // 如果是网络错误，但交易可能已经发送，尝试轮询交易状态
-        if (error.message && error.message.includes('Network error')) {
-          setTransactionStep('SENDING');
-          // 开始轮询交易状态
-          startPollingTransactionStatus(transactionData);
-          return;
-        } else {
-          throw error;
-        }
+      // 发送原始金额，让后端处理精度转换
+      const params = {
+        device_id: await DeviceManager.getDeviceId(),
+        to_address: transactionData.to_address,
+        amount: amount,  // 使用原始金额
+        payment_password: transactionData.password,
+        token_address: tokenInfo?.address
+      };
+
+      console.log('Sending Solana transaction with params:', {
+        ...params,
+        payment_password: '***'
+      });
+
+      const response = await api.sendSolanaTransaction(
+        effectiveWallet.id,
+        params
+      );
+
+      if (!response) {
+        throw new Error('Network error, no response received');
+      }
+
+      console.log('Transaction response:', response);
+      
+      if (response.status === 'error') {
+        throw {
+          message: response.message || 'Transaction failed',
+          error_code: response.error_code || 'UNKNOWN_ERROR'
+        };
       }
       
       if (response && response.status === 'success') {
@@ -157,141 +129,133 @@ export default function TransactionLoadingScreen({ navigation, route }) {
           handleSuccess(null, transactionData);
         }
       } else {
-        throw new Error(response?.message || 'Transaction failed');
+        throw new Error(response?.message || '交易失败');
       }
     } catch (error) {
       console.error('Transaction failed:', error);
-      setError(error.message || 'Transaction failed, please try again later');
-      setStatus('error');
       
-      // 导航到交易失败页面
-      navigation.replace('TransactionFailed', {
-        error: 'Transaction failed, please try again later',
-        selectedWallet: route.params.selectedWallet,
-        recipientAddress: route.params.to_address,
-        amount: route.params.amount,
-        token: route.params.token_symbol || route.params.token,
-        tokenInfo: route.params.tokenInfo
-      });
+      const errorMessage = error.message || '交易失败，请稍后重试';
+      const errorCode = error.error_code || 'UNKNOWN_ERROR';
+      
+      if (errorCode === 'NETWORK_ERROR') {
+        Alert.alert(
+          '网络错误',
+          '请检查网络连接并重试',
+          [
+            { 
+              text: '取消', 
+              style: 'cancel',
+              onPress: () => handleTransactionError(errorMessage, errorCode)
+            },
+            { 
+              text: '重试', 
+              onPress: () => {
+                setStatus('processing');
+                setTransactionStep('CREATING');
+                sendTransaction();
+              }
+            }
+          ]
+        );
+        return;
+      }
+      
+      handleTransactionError(errorMessage, errorCode);
     }
   };
   
-  const startPollingTransactionStatus = async (transactionData, txHash = null) => {
-    const MAX_RETRIES = 30;
-    let currentRetry = 0;
-    let deviceId = transactionData.device_id;
-    
-    // 如果没有交易哈希，尝试从后端获取最近的交易
-    if (!txHash) {
-      console.log('No transaction hash provided, will check recent transactions');
-      // 这里可以添加获取最近交易的逻辑
-    }
-    
-    const pollInterval = setInterval(async () => {
-      try {
-        currentRetry++;
-        console.log(`Polling transaction status (${currentRetry}/${MAX_RETRIES})`);
-        
-        if (currentRetry > MAX_RETRIES) {
-          clearInterval(pollInterval);
-          // 导航到交易失败页面
-          navigation.replace('TransactionFailed', {
-            error: 'Transaction confirmation timed out, please check transaction status',
-            selectedWallet: transactionData.selectedWallet,
-            recipientAddress: transactionData.to_address,
-            amount: transactionData.amount,
-            token: transactionData.token_symbol || transactionData.token,
-            tokenInfo: transactionData.tokenInfo
-          });
-          return;
-        }
-        
-        // 如果有交易哈希，直接查询交易状态
-        if (txHash) {
-          console.log('Polling transaction with hash:', txHash);
-          try {
-            const statusResponse = await api.getTransactionStatus(deviceId, txHash);
-            console.log('Transaction status response:', statusResponse);
+  const startPollingTransactionStatus = async (transactionData, txHash) => {
+    try {
+      setTransactionStep('CONFIRMING');
+      
+      // 获取设备ID
+      const deviceId = await DeviceManager.getDeviceId();
+      
+      // 设置最大重试次数和轮询间隔
+      const maxRetries = 30;
+      const pollingInterval = 2000; // 2秒
+      
+      // 开始轮询
+      const pollStatus = async () => {
+        try {
+          const response = await api.getTransactionStatus(
+            deviceId,
+            txHash,
+            transactionData.wallet_id,
+            transactionData.chain || 'SOL' // 添加chain参数以区分不同链的交易
+          );
+
+          console.log('Transaction status response:', response);
+          
+          if (response.status === 'success' && response.data) {
+            const txStatus = response.data.status?.toUpperCase();
             
-            if (statusResponse.status === 'success') {
-              const txStatus = statusResponse.data?.status;
-              
-              // 提取交易哈希 - 可能在响应中有更新的哈希
-              const updatedTxHash = statusResponse.data?.tx_hash || statusResponse.data?.transaction_hash || txHash;
-              
-              // 更新交易步骤
-              if (txStatus && statusMessages[txStatus]) {
-                setTransactionStep(txStatus);
-              }
-              
-              // 如果交易成功，导航到成功页面
-              if (txStatus === 'SUCCESS') {
-                clearInterval(pollInterval);
+            // 根据不同状态处理
+            switch(txStatus) {
+              case 'CONFIRMED':
+              case 'SUCCESS':
                 setStatus('success');
-                console.log('Transaction successful, navigating with hash:', updatedTxHash);
-                handleSuccess(updatedTxHash, transactionData);
-                return;
-              }
+                handleSuccess(txHash, transactionData);
+                return true;
               
-              // 如果交易失败，导航到失败页面
-              if (txStatus === 'FAILED') {
-                clearInterval(pollInterval);
-                console.log('Transaction failed with hash:', txHash);
-                navigation.replace('TransactionFailed', {
-                  error: 'Transaction failed, please check transaction details',
-                  selectedWallet: transactionData.selectedWallet,
-                  recipientAddress: transactionData.to_address,
-                  amount: transactionData.amount,
-                  token: transactionData.token_symbol || transactionData.token,
-                  tokenInfo: transactionData.tokenInfo,
-                  transactionHash: txHash
-                });
-                return;
-              }
-            } else if (statusResponse.status === 'error') {
-              console.warn('Error in transaction status response:', statusResponse.message);
-              // 不中断轮询，继续尝试
+              case 'FAILED':
+                throw new Error(response.data.error || '交易失败');
+              
+              case 'PENDING':
+              case 'CONFIRMING':
+                return false;
+              
+              default:
+                if (retryCount >= maxRetries) {
+                  throw new Error('交易确认超时');
+                }
+                return false;
             }
-          } catch (error) {
-            console.error('Error polling transaction status:', error);
-            // 继续轮询，不要中断
+          } else {
+            throw new Error(response.message || '获取交易状态失败');
           }
-        } else {
-          // 如果没有交易哈希，模拟交易状态进展
-          const steps = ['CREATING', 'CHECKING_ACCOUNTS', 'SIMULATING', 'SENDING', 'CONFIRMING'];
-          const currentStepIndex = steps.indexOf(transactionStep);
-          
-          if (currentStepIndex < steps.length - 1) {
-            setTransactionStep(steps[currentStepIndex + 1]);
-          }
-          
-          // 在没有交易哈希的情况下，我们可以尝试查询最近的交易
-          // 这里可以添加查询最近交易的逻辑
-          
-          // 如果轮询超过10次仍然没有交易哈希，假设交易已经成功
-          // 这只是一个临时解决方案，理想情况下应该从后端获取交易哈希
-          if (currentRetry > 10) {
-            clearInterval(pollInterval);
-            setStatus('success');
-            console.log('Assuming transaction success after 10 retries without hash');
-            // 导航到成功页面，但不提供交易哈希
-            handleSuccess(null, transactionData);
-            return;
-          }
+        } catch (error) {
+          console.error('Poll status error:', error);
+          throw error;
         }
-        
-        setRetryCount(currentRetry);
-      } catch (error) {
-        console.error('Failed to query transaction status:', error);
-        // 不要中断轮询，继续尝试
-        // 只有在达到最大重试次数时才导航到失败页面
+      };
+      
+      // 执行轮询
+      while (retryCount < maxRetries) {
+        try {
+          const isComplete = await pollStatus();
+          if (isComplete) break;
+          
+          setRetryCount(count => count + 1);
+          await new Promise(resolve => setTimeout(resolve, pollingInterval));
+        } catch (error) {
+          if (error.message.includes('超时') || retryCount >= maxRetries - 1) {
+            throw error;
+          }
+          // 其他错误继续重试
+          setRetryCount(count => count + 1);
+          await new Promise(resolve => setTimeout(resolve, pollingInterval));
+        }
       }
-    }, 2000);
-    
-    // 清理函数
-    return () => {
-      clearInterval(pollInterval);
-    };
+      
+      // 如果达到最大重试次数
+      if (retryCount >= maxRetries) {
+        throw new Error('交易确认超时，请在区块浏览器中查看交易状态');
+      }
+      
+    } catch (error) {
+      console.error('Transaction polling failed:', error);
+      setStatus('error');
+      navigation.replace('TransactionFailed', {
+        error: error.message || '交易确认失败',
+        error_code: error.error_code || 'CONFIRMATION_ERROR',
+        selectedWallet: transactionData.selectedWallet,
+        recipientAddress: transactionData.to_address,
+        amount: transactionData.amount,
+        token: transactionData.token_symbol || transactionData.token,
+        tokenInfo: transactionData.tokenInfo
+      });
+    }
   };
 
   const handleSuccess = (txHash, data) => {
@@ -301,6 +265,19 @@ export default function TransactionLoadingScreen({ navigation, route }) {
       token: data.token_symbol || data.token,
       recipientAddress: data.to_address,
       transactionHash: txHash
+    });
+  };
+
+  const handleTransactionError = (errorMessage, errorCode) => {
+    setStatus('error');
+    navigation.replace('TransactionFailed', {
+      error: errorMessage,
+      error_code: errorCode,
+      selectedWallet: route.params.selectedWallet,
+      recipientAddress: route.params.to_address,
+      amount: route.params.amount,
+      token: route.params.token_symbol || route.params.token,
+      tokenInfo: route.params.tokenInfo
     });
   };
 
@@ -342,7 +319,7 @@ export default function TransactionLoadingScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1A1F3D',
+    backgroundColor: '#171C32',
   },
   content: {
     flex: 1,
@@ -357,22 +334,44 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    marginBottom: 10,
+    marginBottom: 16,
+    textAlign: 'center',
   },
   message: {
     fontSize: 16,
-    color: '#DDDDDD',
+    color: '#8E8E8E',
     textAlign: 'center',
     marginBottom: 20,
+    paddingHorizontal: 20,
   },
   hash: {
     fontSize: 14,
-    color: '#AAAAAA',
+    color: '#8E8E8E',
     textAlign: 'center',
+    padding: 12,
+    backgroundColor: '#272C52',
+    borderRadius: 8,
+    marginTop: 16,
   },
   retryText: {
     fontSize: 14,
-    color: '#AAAAAA',
-    marginTop: 10,
+    color: '#8E8E8E',
+    marginTop: 16,
+  },
+  statusContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  statusIndicator: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#1FC595',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  errorIndicator: {
+    backgroundColor: '#FF4B55',
   },
 });

@@ -18,7 +18,7 @@ import { useWallet } from '../../contexts/WalletContext';
 import Header from '../../components/common/Header';
 
 export default function TokenListScreen({ navigation, route }) {
-  const { tokens = [], onSelect } = route.params || {};
+  const { tokens = [] } = route.params || {};
   const [filteredTokens, setFilteredTokens] = useState(tokens);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -29,6 +29,22 @@ export default function TokenListScreen({ navigation, route }) {
       setFilteredTokens(tokens);
     }
   }, [tokens]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      const parentNavigation = navigation.getParent();
+      if (parentNavigation?.route?.params?.onSelect) {
+        navigation.setOptions({
+          onTokenSelect: (token) => {
+            parentNavigation.route.params.onSelect(token);
+            navigation.goBack();
+          }
+        });
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation]);
 
   useEffect(() => {
     if (searchQuery.trim() === '') {
@@ -45,6 +61,8 @@ export default function TokenListScreen({ navigation, route }) {
   }, [searchQuery, tokens]);
 
   const handleTokenSelect = (token) => {
+    const { onSelect } = route.params || {};
+    
     if (onSelect) {
       onSelect(token);
       navigation.goBack();
@@ -116,7 +134,7 @@ export default function TokenListScreen({ navigation, route }) {
         <FlatList
           data={filteredTokens}
           renderItem={renderTokenItem}
-          keyExtractor={item => item.address}
+          keyExtractor={item => item.token_address || item.address}
           contentContainerStyle={styles.listContainer}
           refreshControl={
             <RefreshControl
