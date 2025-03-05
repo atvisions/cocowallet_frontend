@@ -7,16 +7,30 @@ import {
   ScrollView,
   Alert,
   Platform,
-  SafeAreaView
+  SafeAreaView,
+  StatusBar
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { api } from '../../services/api';
 import { DeviceManager } from '../../utils/device';
 import Constants from 'expo-constants';
 import Header from '../../components/common/Header';
+import { useFocusEffect } from '@react-navigation/native';
 
 export default function SettingsScreen({ navigation }) {
   const [hasPaymentPassword, setHasPaymentPassword] = useState(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('SettingsScreen focused, setting status bar style');
+      StatusBar.setBarStyle('light-content');
+      StatusBar.setBackgroundColor('transparent');
+      StatusBar.setTranslucent(true);
+
+      // 移除清理函数，不在 blur 时重置状态栏
+      return () => {};
+    }, [])
+  );
 
   // 在组件加载时检查支付密码状态
   useEffect(() => {
@@ -33,6 +47,7 @@ export default function SettingsScreen({ navigation }) {
   }, [navigation]);
 
   const checkPaymentPasswordStatus = async () => {
+    console.log('Checking payment password status...');
     try {
       const deviceId = await DeviceManager.getDeviceId();
       const response = await api.checkPaymentPasswordStatus(deviceId);

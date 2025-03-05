@@ -1,5 +1,7 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
+import { StatusBar } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 
 // 导入页面组件
 import Onboarding from '../screens/onboarding/Onboarding';

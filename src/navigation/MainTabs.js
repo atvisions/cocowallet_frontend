@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Animated from 'react-native/Libraries/Animated/Animated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Header from '../components/common/Header';
+import { useFocusEffect } from '@react-navigation/native';
 
 import WalletScreen from '../screens/tabs/WalletScreen';
 import SwapScreen from '../screens/tabs/SwapScreen';

@@ -20,7 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useWallet } from '../../contexts/WalletContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CommonActions } from '@react-navigation/native';
+import { CommonActions, useFocusEffect } from '@react-navigation/native';
 import { useWalletNavigation } from '../../hooks/useWalletNavigation';
 
 const WalletScreen = ({ navigation }) => {
@@ -65,6 +65,32 @@ const WalletScreen = ({ navigation }) => {
     }
   }, [wallets.length, isLoading]);
 
+  useEffect(() => {
+    // 添加导航监听器
+    const unsubscribe = navigation.addListener('focus', () => {
+      // 当页面重新获得焦点时刷新代币列表
+      loadTokens(false);  // false 表示不显示加载动画
+    });
+
+    // 清理监听器
+    return unsubscribe;
+  }, [navigation]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('WalletScreen focused');
+      setTransparentStatusBar();
+      return () => {};
+    }, [])
+  );
+
+  const setTransparentStatusBar = () => {
+    console.log('Setting transparent status bar');
+    StatusBar.setBarStyle('light-content');
+    StatusBar.setBackgroundColor('transparent');
+    StatusBar.setTranslucent(true);
+  };
+
   const loadInitialData = async () => {
     try {
       setIsLoading(true);
@@ -100,15 +126,18 @@ const WalletScreen = ({ navigation }) => {
       setTotalBalance('0.00');
     } finally {
       setIsLoading(false);
+      setTransparentStatusBar();  // 加载完成后再次设置状态栏
     }
   };
 
   const loadTokens = async (showLoading = true) => {
+    console.log('Loading tokens...');
     if (!selectedWallet?.id) return;
     
     try {
       if (showLoading) {
         setIsLoading(true);
+        setTransparentStatusBar();  // 加载开始时设置状态栏
       }
       setError(null);
 
@@ -125,12 +154,7 @@ const WalletScreen = ({ navigation }) => {
         selectedWallet.chain
       );
 
-      console.log('[WalletScreen] Token response:', {
-        status: response?.status,
-        totalTokens: response?.data?.data?.tokens?.length,
-        allTokens: response?.data?.data?.tokens,
-        visibleTokens: response?.data?.data?.tokens?.filter(token => token.is_visible)
-      });
+      console.log('[WalletScreen] Token response:', response);
 
       if (response?.status === 'success' && response.data?.data) {
         const { tokens, total_value_usd } = response.data.data;
@@ -174,8 +198,10 @@ const WalletScreen = ({ navigation }) => {
       console.error('Failed to load tokens:', error);
       setError('Failed to load tokens');
     } finally {
+      console.log('Finished loading tokens');
       setIsLoading(false);
       setIsRefreshing(false);
+      setTransparentStatusBar();  // 加载完成后再次设置状态栏
     }
   };
 
@@ -361,12 +387,12 @@ const WalletScreen = ({ navigation }) => {
 
   const handleTokenVisibilityChanged = () => {
     console.log('Token visibility changed, refreshing wallet data...');
-    loadTokens(false);
+    loadTokens(true);  // 立即重新加载代币列表
   };
 
   const handleTokenManagementPress = () => {
     navigation.navigate('TokenManagement', {
-      onTokenVisibilityChanged: handleTokenVisibilityChanged
+      onTokenVisibilityChanged: handleTokenVisibilityChanged  // 传递回调函数
     });
   };
 
@@ -476,25 +502,16 @@ const WalletScreen = ({ navigation }) => {
   };
 
   const renderBackground = () => {
-    const gradientColors = change24h >= 0 
-      ? [
-          'rgba(31, 197, 149, 0.12)',  // 第一个颜色
-          'rgba(31, 197, 149, 0.05)',  // 第二个颜色
-          '#171C32'                    // 底色
-        ]
-      : [
-          'rgba(255, 75, 85, 0.12)',   // 第一个颜色
-          'rgba(255, 75, 85, 0.05)',   // 第二个颜色
-          '#171C32'                    // 底色
-        ];
+    const backgroundColor = change24h >= 0 
+      ? 'rgba(31, 197, 149, 0.1)'  // 绿色
+      : 'rgba(255, 75, 85, 0.1)';   // 红色
 
     return (
       <LinearGradient
-        colors={gradientColors}
+        colors={[backgroundColor, '#171C32']}
         style={styles.backgroundGradient}
         start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 0.8 }}
-        locations={[0, 0.3, 0.6]}
+        end={{ x: 0, y: 1 }}
       />
     );
   };
@@ -516,11 +533,24 @@ const WalletScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      {renderBackground()}
-      {renderHeaderBackground()}
-      <SafeAreaView style={styles.header}>
-        <View style={styles.headerContent}>
+      <LinearGradient
+        colors={[
+          change24h >= 0 
+            ? 'rgba(31, 197, 149, 0.08)'  // 绿色
+            : 'rgba(255, 75, 85, 0.08)',   // 红色
+          '#171C32'                        // 底色
+        ]}
+        style={styles.backgroundGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 0.6 }}
+      />
+      <StatusBar 
+        barStyle="light-content" 
+        backgroundColor="transparent" 
+        translucent 
+      />
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.header}>
           <TouchableOpacity 
             style={styles.walletSelector}
             onPress={handleWalletSelect}
@@ -548,87 +578,87 @@ const WalletScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
         </View>
-      </SafeAreaView>
 
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-        onScroll={event => {
-          setScrollOffset(event.nativeEvent.contentOffset.y);
-        }}
-        scrollEventThrottle={16}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            tintColor="#1FC595"
-          />
-        }
-      >
-        {renderError()}
-        {renderBalanceCard()}
-        <View style={styles.actionButtons}>
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={handleReceive}
-          >
-            <LinearGradient
-              colors={['#1FC595', '#17A982']}
-              style={styles.actionButtonGradient}
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+          onScroll={event => {
+            setScrollOffset(event.nativeEvent.contentOffset.y);
+          }}
+          scrollEventThrottle={16}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor="#1FC595"
+            />
+          }
+        >
+          {renderError()}
+          {renderBalanceCard()}
+          <View style={styles.actionButtons}>
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={handleReceive}
             >
-              <Ionicons name="arrow-down" size={24} color="#FFFFFF" />
-            </LinearGradient>
-            <Text style={styles.actionButtonText}>Receive</Text>
-          </TouchableOpacity>
-  
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={handleSend}
-          >
-            <LinearGradient
-              colors={['#FF4B55', '#E63F48']}
-              style={styles.actionButtonGradient}
+              <LinearGradient
+                colors={['#1FC595', '#17A982']}
+                style={styles.actionButtonGradient}
+              >
+                <Ionicons name="arrow-down" size={24} color="#FFFFFF" />
+              </LinearGradient>
+              <Text style={styles.actionButtonText}>Receive</Text>
+            </TouchableOpacity>
+    
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={handleSend}
             >
-              <Ionicons name="arrow-up" size={24} color="#FFFFFF" />
-            </LinearGradient>
-            <Text style={styles.actionButtonText}>Send</Text>
-          </TouchableOpacity>
-  
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={async () => {
-              try {
-                if (!selectedWallet?.id) {
-                  Alert.alert('错误', '钱包信息不完整');
-                  return;
+              <LinearGradient
+                colors={['#FF4B55', '#E63F48']}
+                style={styles.actionButtonGradient}
+              >
+                <Ionicons name="arrow-up" size={24} color="#FFFFFF" />
+              </LinearGradient>
+              <Text style={styles.actionButtonText}>Send</Text>
+            </TouchableOpacity>
+    
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={async () => {
+                try {
+                  if (!selectedWallet?.id) {
+                    Alert.alert('错误', '钱包信息不完整');
+                    return;
+                  }
+                  const deviceId = await DeviceManager.getDeviceId();
+                  
+                  const params = {
+                    deviceId,
+                    walletId: selectedWallet.id,
+                    chain: selectedWallet.chain?.toLowerCase()
+                  };
+
+                  console.log('History params:', params);
+                  navigation.navigate('History', params);
+                } catch (error) {
+                  console.error('Navigation error:', error);
+                  Alert.alert('错误', '无法访问交易历史');
                 }
-                const deviceId = await DeviceManager.getDeviceId();
-                
-                const params = {
-                  deviceId,
-                  walletId: selectedWallet.id,
-                  chain: selectedWallet.chain?.toLowerCase()
-                };
-
-                console.log('History params:', params);
-                navigation.navigate('History', params);
-              } catch (error) {
-                console.error('Navigation error:', error);
-                Alert.alert('错误', '无法访问交易历史');
-              }
-            }}
-          >
-            <LinearGradient
-              colors={['#3B82F6', '#2563EB']}
-              style={styles.actionButtonGradient}
+              }}
             >
-              <Ionicons name="time" size={24} color="#FFFFFF" />
-            </LinearGradient>
-            <Text style={styles.actionButtonText}>History</Text>
-          </TouchableOpacity>
-        </View>
-        {renderAssetsSection()}
-      </ScrollView>
+              <LinearGradient
+                colors={['#3B82F6', '#2563EB']}
+                style={styles.actionButtonGradient}
+              >
+                <Ionicons name="time" size={24} color="#FFFFFF" />
+              </LinearGradient>
+              <Text style={styles.actionButtonText}>History</Text>
+            </TouchableOpacity>
+          </View>
+          {renderAssetsSection()}
+        </ScrollView>
+      </SafeAreaView>
     </View>
   );
 };
@@ -636,28 +666,35 @@ const WalletScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#171C32',  // 设置基础背景色
+    backgroundColor: '#171C32',
+  },
+  backgroundGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 0,
+  },
+  safeArea: {
+    flex: 1,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    zIndex: 1,
   },
   header: {
-    backgroundColor: 'transparent',
-    paddingTop: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight,  // 状态栏高度
-    zIndex: 2,  // 确保在背景之上
-  },
-  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    height: 56,  // header 内容的高度
+    height: 56,
   },
   walletSelector: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: '100%',  // 填充整个高度
   },
   walletAvatar: {
-    width: 28,  // 稍微减小头像尺寸
+    width: 28,
     height: 28,
     borderRadius: 14,
     marginRight: 8,
@@ -680,17 +717,15 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    backgroundColor: 'transparent',
-    zIndex: 1,  // 确保内容在渐变上层
   },
   contentContainer: {
     padding: 16,
-    paddingTop: 6,  // 原来是 16，减少 10
+    paddingTop: 6,  // 从 16 改为 6，整体向上移动 10
   },
   balanceCard: {
-    marginBottom: 4,  // 减少底部边距
+    marginBottom: 24,
     paddingHorizontal: 16,
-    marginTop: -10,
+    marginTop: 0,  // 添加负的上边距
   },
   balanceContent: {
     height: 160,  // 设置固定高度
@@ -760,8 +795,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     paddingHorizontal: 16,
-    marginBottom: 24,
-    marginTop: -10,  // 保持这个负边距
+    marginBottom: 30,
+    marginTop: -50,  // 保持这个负边距
   },
   actionButton: {
     alignItems: 'center',
@@ -883,14 +918,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-  },
-  backgroundGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 0,  // 确保渐变在底层
   },
   headerBackground: {
     position: 'absolute',

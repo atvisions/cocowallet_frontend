@@ -19,6 +19,7 @@ import { api } from '../../services/api';
 import { DeviceManager } from '../../utils/device';
 import { useWallet } from '../../contexts/WalletContext';
 import Header from '../../components/common/Header';
+import { useFocusEffect } from '@react-navigation/native';
 
 export default function SwapScreen({ navigation }) {
   const { selectedWallet } = useWallet();
@@ -54,7 +55,20 @@ export default function SwapScreen({ navigation }) {
     }
   }, [selectedWallet?.id]);
 
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('SwapScreen focused, setting status bar style');
+      StatusBar.setBarStyle('light-content');
+      StatusBar.setBackgroundColor('transparent');
+      StatusBar.setTranslucent(true);
+
+      // 移除清理函数，不在 blur 时重置状态栏
+      return () => {};
+    }, [])
+  );
+
   const loadTokens = async () => {
+    console.log('Loading tokens in SwapScreen...');
     try {
       setIsLoading(true);
       const deviceId = await DeviceManager.getDeviceId();
