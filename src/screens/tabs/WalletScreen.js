@@ -197,6 +197,17 @@ const WalletScreen = ({ navigation }) => {
       const num = parseFloat(balance);
       if (isNaN(num)) return '0';
 
+      // 如果数字超过8位，使用科学计数法
+      if (num >= 1e8 || num <= -1e8) {
+        return num.toExponential(4);
+      }
+
+      // 如果数字小于0.0001，使用特殊格式
+      if (num < 0.0001 && num > 0) {
+        const decimalCount = Math.abs(Math.floor(Math.log10(num))) - 1;
+        return `0.(${decimalCount})${num.toFixed(decimalCount + 1).slice(-1)}`;
+      }
+
       // 如果是整数，直接返回
       if (Number.isInteger(num)) {
         return num.toLocaleString();
@@ -216,7 +227,12 @@ const WalletScreen = ({ navigation }) => {
       const num = parseFloat(value);
       if (isNaN(num)) return '$0.00';
 
-      // 如果价值小于 0.01，显示更多小数位
+      // 如果价值小于 0.0001，使用特殊格式
+      if (num < 0.0001 && num > 0) {
+        const decimalCount = Math.abs(Math.floor(Math.log10(num))) - 1;
+        return `$0.(${decimalCount})${num.toFixed(decimalCount + 1).slice(-1)}`;
+      }
+      // 如果价值小于 0.01，显示 8 位小数
       if (num < 0.01) {
         return `$${num.toFixed(8)}`;
       }
@@ -226,6 +242,12 @@ const WalletScreen = ({ navigation }) => {
       }
       // 其他情况显示 2 位小数
       return `$${num.toFixed(2)}`;
+    };
+
+    // 格式化代币名称
+    const formatTokenName = (name) => {
+      if (!name) return '';
+      return name.length > 10 ? `${name.slice(0, 10)}...` : name;
     };
 
     // 格式化价格变化
@@ -243,19 +265,19 @@ const WalletScreen = ({ navigation }) => {
     return (
       <View style={styles.tokenItem}>
         <Image 
-          source={{ uri: item.logo }}
+          source={item.logo ? { uri: item.logo } : require('../../../assets/default-token.png')} 
           style={styles.tokenLogo}
         />
         <View style={styles.tokenInfo}>
           <View style={styles.tokenHeader}>
-            <Text style={styles.tokenName}>{item.name}</Text>
+            <Text style={styles.tokenName}>{formatTokenName(item.name)}</Text>
             <Text style={styles.tokenValue}>
               {formatTokenValue(item.value_usd)}
             </Text>
           </View>
           <View style={styles.tokenDetails}>
             <Text style={styles.tokenBalance}>
-              {formatTokenBalance(item.balance)} {item.symbol}
+              {formatTokenBalance(item.balance_formatted)} {item.symbol.length > 6 ? `${item.symbol.slice(0, 6)}...` : item.symbol}
             </Text>
             <Text style={[
               styles.priceChange,

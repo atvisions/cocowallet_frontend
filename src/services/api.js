@@ -441,7 +441,14 @@ export const api = {
       
       console.log('API getWalletTokens response:', response.data);
       
-      // 直接返回响应数据，不做额外处理
+      // 使用后端返回的 balance_formatted
+      if (chainPath === 'evm' && response.data?.tokens) {
+        response.data.tokens = response.data.tokens.map(token => ({
+          ...token,
+          balance: token.balance_formatted || token.balance
+        }));
+      }
+      
       return {
         status: 'success',
         data: response.data
@@ -685,6 +692,34 @@ export const api = {
       return {
         status: 'error',
         message: error.response?.data?.message || '网络连接错误，请检查网络状态'
+      };
+    }
+  },
+
+  getRecommendedTokens: async (deviceId, chain) => {
+    try {
+      const chainPath = getChainPath(chain);
+      const response = await instance.get(
+        `/${chainPath}/wallets/recommended-tokens/`,
+        {
+          params: { 
+            device_id: deviceId,
+            chain: chain.toUpperCase()  // 添加 chain 参数并转换为大写
+          }
+        }
+      );
+      
+      console.log('Recommended tokens response:', response.data);
+      
+      return {
+        status: 'success',
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Failed to get recommended tokens:', error);
+      return {
+        status: 'error',
+        message: error.response?.data?.message || '获取推荐代币失败'
       };
     }
   },

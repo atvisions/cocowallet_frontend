@@ -79,10 +79,10 @@ export default function SwapScreen({ navigation }) {
       if (!selectedWallet) return;
 
       const chain = selectedWallet.chain.toLowerCase();
-      const response = await api.getRecommendedTokens(chain);
+      const response = await api.getRecommendedTokens(deviceId, chain);
       
-      if (response?.data) {
-        setRecommendedTokens(response.data);
+      if (response?.status === 'success' && response?.data) {
+        setRecommendedTokens(response.data.tokens || []);
       }
     } catch (error) {
       console.error('Failed to load recommended tokens:', error);
