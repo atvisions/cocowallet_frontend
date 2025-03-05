@@ -33,6 +33,7 @@ const WalletScreen = ({ navigation }) => {
   const [change24h, setChange24h] = useState(0);
   const [error, setError] = useState(null);
   const insets = useSafeAreaInsets();
+  const [scrollOffset, setScrollOffset] = useState(0);
 
   useWalletNavigation(navigation);
 
@@ -189,7 +190,7 @@ const WalletScreen = ({ navigation }) => {
     return `${prefix}${change.toFixed(2)}%`;
   };
 
-  const renderTokenItem = ({ item }) => {
+  const renderTokenItem = ({ item, index }) => {
     // 格式化代币余额
     const formatTokenBalance = (balance) => {
       if (!balance) return '0';
@@ -309,36 +310,28 @@ const WalletScreen = ({ navigation }) => {
   };
 
   const renderBalanceCard = () => (
-    <LinearGradient
-      colors={['#1B2C41', '#1B2C41']}
-      style={styles.balanceCard}
-    >
+    <View style={styles.balanceCard}>
       <View style={styles.balanceContent}>
-        <Text style={styles.balanceLabel}>Total Balance</Text>
-        {isLoading ? (
-          <View style={styles.balanceAmountSkeleton}>
-            <View style={styles.skeletonAnimation} />
-          </View>
-        ) : (
-          <Text style={styles.balanceAmount}>
-            ${Number(totalBalance).toFixed(2)}
-          </Text>
-        )}
-        <View style={styles.balanceFooter}>
+        <Text style={styles.balanceLabel}>Balance</Text>
+        <View style={styles.balanceRow}>
           {isLoading ? (
-            <View style={styles.changeSkeleton}>
+            <View style={styles.balanceAmountSkeleton}>
               <View style={styles.skeletonAnimation} />
             </View>
           ) : (
             <>
-              <View style={[
-                styles.changeIndicator,
-                { backgroundColor: change24h >= 0 ? 'rgba(31, 197, 149, 0.1)' : 'rgba(255, 75, 85, 0.1)' }
-              ]}>
+              <Text style={styles.balanceAmount}>
+                ${Number(totalBalance).toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+                })}
+              </Text>
+              <View style={styles.changeIndicator}>
                 <Ionicons 
                   name={change24h >= 0 ? "trending-up" : "trending-down"} 
-                  size={14} 
+                  size={18} 
                   color={change24h >= 0 ? "#1FC595" : "#FF4B55"} 
+                  style={styles.changeIcon}
                 />
                 <Text style={[
                   styles.changePercentage,
@@ -347,12 +340,11 @@ const WalletScreen = ({ navigation }) => {
                   {formatChange(change24h)}
                 </Text>
               </View>
-              <Text style={styles.changeTime}>24h Change</Text>
             </>
           )}
         </View>
       </View>
-    </LinearGradient>
+    </View>
   );
 
   const handleReceive = () => {
@@ -384,22 +376,15 @@ const WalletScreen = ({ navigation }) => {
 
   const renderAssetsSection = () => (
     <View style={styles.assetsSection}>
-      <View style={styles.assetsHeader}>
-        <Text style={styles.sectionTitle}>Assets</Text>
-        <TouchableOpacity 
-          style={styles.tokenManagementButton}
-          onPress={handleTokenManagementPress}
-        >
-          <Ionicons name="options-outline" size={20} color="#8E8E8E" />
-        </TouchableOpacity>
+      <View style={styles.tokenListContainer}>
+        <FlatList
+          data={tokens}
+          renderItem={renderTokenItem}
+          keyExtractor={item => `${item.chain}_${item.address}`}
+          scrollEnabled={false}
+          contentContainerStyle={styles.tokenList}
+        />
       </View>
-      <FlatList
-        data={tokens}
-        renderItem={renderTokenItem}
-        keyExtractor={item => `${item.chain}_${item.address}`}
-        scrollEnabled={false}
-        contentContainerStyle={styles.tokenList}
-      />
     </View>
   );
 
@@ -490,9 +475,50 @@ const WalletScreen = ({ navigation }) => {
     );
   };
 
+  const renderBackground = () => {
+    const gradientColors = change24h >= 0 
+      ? [
+          'rgba(31, 197, 149, 0.12)',  // 第一个颜色
+          'rgba(31, 197, 149, 0.05)',  // 第二个颜色
+          '#171C32'                    // 底色
+        ]
+      : [
+          'rgba(255, 75, 85, 0.12)',   // 第一个颜色
+          'rgba(255, 75, 85, 0.05)',   // 第二个颜色
+          '#171C32'                    // 底色
+        ];
+
+    return (
+      <LinearGradient
+        colors={gradientColors}
+        style={styles.backgroundGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 0.8 }}
+        locations={[0, 0.3, 0.6]}
+      />
+    );
+  };
+
+  const renderHeaderBackground = () => {
+    const opacity = Math.min(scrollOffset / 100, 1);  // 根据滚动位置计算透明度
+    return (
+      <View 
+        style={[
+          styles.headerBackground, 
+          { 
+            backgroundColor: `rgba(23, 28, 50, ${opacity})`,
+            height: Platform.OS === 'ios' ? 90 : 60 + StatusBar.currentHeight, // 包含状态栏高度
+          }
+        ]} 
+      />
+    );
+  };
+
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#171C32" />
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      {renderBackground()}
+      {renderHeaderBackground()}
       <SafeAreaView style={styles.header}>
         <View style={styles.headerContent}>
           <TouchableOpacity 
@@ -527,6 +553,10 @@ const WalletScreen = ({ navigation }) => {
       <ScrollView
         style={styles.content}
         contentContainerStyle={styles.contentContainer}
+        onScroll={event => {
+          setScrollOffset(event.nativeEvent.contentOffset.y);
+        }}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -606,18 +636,20 @@ const WalletScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#171C32',
+    backgroundColor: '#171C32',  // 设置基础背景色
   },
   header: {
-    backgroundColor: '#171C32',
+    backgroundColor: 'transparent',
+    paddingTop: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight,  // 状态栏高度
+    zIndex: 2,  // 确保在背景之上
   },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 4,  // 减小垂直间距
-    height: 48,  // 固定 header 高度
+    paddingVertical: 8,
+    height: 56,  // header 内容的高度
   },
   walletSelector: {
     flexDirection: 'row',
@@ -648,68 +680,72 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    backgroundColor: 'transparent',
+    zIndex: 1,  // 确保内容在渐变上层
   },
   contentContainer: {
     padding: 16,
+    paddingTop: 6,  // 原来是 16，减少 10
   },
   balanceCard: {
-    borderRadius: 24,
-    marginBottom: 24,
-    backgroundColor: '#1B2C41',
+    marginBottom: 4,  // 减少底部边距
+    paddingHorizontal: 16,
+    marginTop: -10,
   },
   balanceContent: {
-    padding: 24,
+    height: 160,  // 设置固定高度
+    justifyContent: 'flex-start',  // 改为从顶部开始布局
+    paddingTop: 20,
   },
   balanceLabel: {
-    fontSize: 16,
-    color: '#8E8E8E',
+    fontSize: 20,
+    color: '#A0AEC0',
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    height: 24,  // 设置固定高度
+    lineHeight: 24,  // 设置行高
     marginBottom: 8,
-    height: 24,
-    lineHeight: 24,
   },
-  balanceAmount: {
-    fontSize: 40,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 16,
-    height: 48,
-    lineHeight: 48,
-  },
-  balanceAmountSkeleton: {
-    height: 48,
-    width: 200,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 8,
-    overflow: 'hidden',
-    marginBottom: 16,
-  },
-  balanceFooter: {
+  balanceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 32,
+    justifyContent: 'flex-start',  // 让元素靠左对齐
+  },
+  balanceAmount: {
+    fontSize: 52,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+    marginRight: 12,
+    height: 60,  // 设置固定高度
+    lineHeight: 60,  // 设置行高
   },
   changeIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginRight: 12,
+    alignSelf: 'center',  // 垂直居中对齐
+  },
+  changeIcon: {
+    marginRight: 4,  // 稍微减小图标和文字的间距
   },
   changePercentage: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 4,
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
-  changeTime: {
-    color: '#8E8E8E',
-    fontSize: 14,
+  balanceAmountSkeleton: {
+    height: 60,  // 匹配 balanceAmount 的高度
+    width: '80%',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 4,
   },
   changeSkeleton: {
-    height: 32,
-    width: 120,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 16,
+    height: 40,  // 匹配 changeIndicator 的高度
+    width: 130,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 20,
     overflow: 'hidden',
   },
   skeletonAnimation: {
@@ -718,13 +754,14 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
   actionButtons: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     paddingHorizontal: 16,
     marginBottom: 24,
+    marginTop: -10,  // 保持这个负边距
   },
   actionButton: {
     alignItems: 'center',
@@ -753,26 +790,20 @@ const styles = StyleSheet.create({
   assetsSection: {
     flex: 1,
   },
-  assetsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 0,
-    marginTop: 0,
+  tokenListContainer: {
+    backgroundColor: '#1B2C41',
+    borderRadius: 24,
+    padding: 8,
+    marginHorizontal: 0,  // 移除水平边距
   },
   tokenItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#272C52',
-    borderRadius: 12,
-    marginBottom: 12,
+    paddingTop: 14,  // 从 16 减少到 12
+    paddingBottom: 14,
+    paddingLeft: 12,
+    paddingRight: 12,
+    backgroundColor: 'transparent',
   },
   tokenLogo: {
     width: 40,
@@ -852,6 +883,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
+  },
+  backgroundGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 0,  // 确保渐变在底层
+  },
+  headerBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1,  // 确保在渐变背景之上
+  },
+  tokenItemSkeleton: {
+    height: 64,  // 匹配 tokenItem 的实际高度
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 12,
+    marginBottom: 12,
   },
 });
 
