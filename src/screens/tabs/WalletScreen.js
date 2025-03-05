@@ -223,9 +223,9 @@ const WalletScreen = ({ navigation }) => {
 
     // 格式化代币价值
     const formatTokenValue = (value) => {
-      if (!value) return '$0.00';
+      if (!value || parseFloat(value) === 0) return '$0';
       const num = parseFloat(value);
-      if (isNaN(num)) return '$0.00';
+      if (isNaN(num)) return '$0';
 
       // 如果价值小于 0.0001，使用特殊格式
       if (num < 0.0001 && num > 0) {

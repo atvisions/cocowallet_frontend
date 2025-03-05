@@ -31,9 +31,16 @@
       },
       "navigationBarColor": "#171C32",
       "softwareKeyboardLayoutMode": "pan",
+      "navigationBarDividerColor": "#171C32",
       "allowBackup": true,
       "statusBarColor": "#171C32",
-      "navigationBarHidden": true,
+      "navigationBarHidden": false,
+      "theme": "@style/Theme.App.SplashScreen",
+      "userInterfaceStyle": "dark",
+      "navigationBar": {
+        "backgroundColor": "#171C32",
+        "barStyle": "light-content"
+      },
       "permissions": [
         "android.permission.CAMERA"
       ],

@@ -20,15 +20,22 @@ export const formatAmount = (amount, decimals = 4) => {
   const num = parseFloat(amount);
   if (isNaN(num)) return '0';
   
+  // 如果数值为0，直接返回'0'
+  if (num === 0) return '0';
+  
   // 对于小于0.0001的数值，保留更多小数位以显示实际值
   if (num < 0.0001 && num > 0) {
     return num.toFixed(Math.min(8, decimals));
   }
   
   if (num >= 1000000) {
-    return num.toLocaleString('en-US', { maximumFractionDigits: decimals });
+    const formatted = num.toLocaleString('en-US', { maximumFractionDigits: decimals });
+    return formatted.replace(/\.?0+$/, '');
   }
-  return num.toFixed(decimals);
+  
+  // 格式化数值并移除末尾的0
+  const formatted = num.toFixed(decimals);
+  return formatted.replace(/\.?0+$/, '') || '0';
 };
 
 /**

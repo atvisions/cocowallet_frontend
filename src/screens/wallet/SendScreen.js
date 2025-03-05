@@ -161,7 +161,7 @@ export default function SendScreen({ navigation, route }) {
       return;
     }
 
-    if (!amount.trim() || !validateAmount(amount)) {
+    if (!amount || !validateAmount(amount)) {
       Alert.alert('错误', '无效的转账金额');
       return;
     }
@@ -275,23 +275,9 @@ export default function SendScreen({ navigation, route }) {
   };
 
   const formatLargeNumber = (number) => {
-    const num = parseFloat(number);
-    if (isNaN(num)) return '0';
-    
-    if (num >= 1000000000) {
-      return (num / 1000000000).toFixed(2) + 'B';
-    } else if (num >= 1000000) {
-      return (num / 1000000).toFixed(2) + 'M';
-    } else if (num >= 1000) {
-      return (num / 1000).toFixed(2) + 'K';
-    }
-    
-    // 对于小数的处理
-    if (num < 1) {
-      return num.toPrecision(4);
-    }
-    
-    return num.toLocaleString();
+    // 直接返回原始输入的字符串，保持用户输入的格式
+    if (!number) return '0';
+    return number;
   };
 
   const formatBalance = (balance, decimals = 18) => {
@@ -302,17 +288,19 @@ export default function SendScreen({ navigation, route }) {
     // 如果余额已经是格式化后的字符串（包含小数点），格式化为小数点后 4 位
     if (typeof balance === 'string' && balance.includes('.')) {
       const num = parseFloat(balance);
+      if (num === 0) return '0';
       return num.toFixed(4);
     }
     
     // 处理数字或不包含小数点的字符串
     try {
       const balanceNum = parseFloat(balance);
-      if (isNaN(balanceNum)) return '0';
+      if (isNaN(balanceNum) || balanceNum === 0) return '0';
       
       // 如果余额是整数形式的大数（链上原始余额），需要根据精度进行格式化
       const tokenDecimals = decimals || 18;
       const formattedBalance = balanceNum / Math.pow(10, tokenDecimals);
+      if (formattedBalance === 0) return '0';
       return formattedBalance.toFixed(4);
     } catch (error) {
       console.error('格式化余额出错:', error);
@@ -321,7 +309,7 @@ export default function SendScreen({ navigation, route }) {
   };
 
   const formatDisplayAmount = (value) => {
-    if (!value) return '0';
+    if (!value || parseFloat(value) === 0) return '0';
     const num = parseFloat(value);
     if (isNaN(num)) return '0';
     if (num >= 1000000) {
@@ -430,15 +418,8 @@ export default function SendScreen({ navigation, route }) {
 
   const handleNumberPress = (number) => {
     let newAmount;
-    // 如果当前金额是通过快捷选择设置的，则从头开始输入
-    const shouldReset = ['MAX', '75%', '50%'].some(type => {
-      const balance = parseFloat(selectedToken?.balance_formatted || '0');
-      const percentage = type === 'MAX' ? 1 : type === '75%' ? 0.75 : 0.5;
-      const quickSelectAmount = (balance * percentage).toString();
-      return amount === quickSelectAmount;
-    });
-
-    if (shouldReset || amount === '0') {
+    // 如果当前金额是'0'且输入不是小数点，则直接替换
+    if (amount === '0' && number !== '.') {
       newAmount = number.toString();
     } else {
       newAmount = amount + number.toString();
@@ -446,19 +427,18 @@ export default function SendScreen({ navigation, route }) {
     
     setAmount(newAmount);
     setUsdValue(calculateUsdValue(newAmount));
-    forceUpdate();
   };
 
   const handleDelete = () => {
-    let newAmount;
-    if (amount.length > 1) {
-      newAmount = amount.slice(0, -1);
+    // 如果只剩一个字符，设为'0'
+    if (amount.length <= 1) {
+      setAmount('0');
     } else {
-      newAmount = '0';
+      // 删除最后一个字符
+      const newAmount = amount.slice(0, -1);
+      setAmount(newAmount);
     }
-    setAmount(newAmount);
-    setUsdValue(calculateUsdValue(newAmount));
-    forceUpdate(); // 添加强制更新
+    setUsdValue(calculateUsdValue(amount));
   };
 
   const handleClear = () => {
@@ -468,12 +448,12 @@ export default function SendScreen({ navigation, route }) {
   };
 
   const handleDot = () => {
-    if (!amount.includes('.')) {
-      const newAmount = amount + '.';
-      setAmount(newAmount);
-      setUsdValue(calculateUsdValue(newAmount));
-      forceUpdate(); // 添加强制更新
+    // 如果已经包含小数点，不做任何操作
+    if (amount.includes('.')) {
+      return;
     }
+    const newAmount = amount + '.';
+    setAmount(newAmount);
   };
 
   const renderNumberPad = () => {
@@ -534,7 +514,7 @@ export default function SendScreen({ navigation, route }) {
   // 添加验证函数
   const validateTransaction = () => {
     const isValidAddress = recipientAddress.trim().length > 0;
-    const isValidAmount = amount.trim().length > 0 && parseFloat(amount) > 0;
+    const isValidAmount = amount && amount.length > 0 && parseFloat(amount) > 0;
     const hasSelectedToken = !!selectedToken;
     const isExceedBalance = parseFloat(amount) > parseFloat(selectedToken?.balance_formatted || '0');
 
