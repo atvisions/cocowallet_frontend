@@ -14,6 +14,7 @@ import { api } from '../../services/api';
 import { DeviceManager } from '../../utils/device';
 import Header from '../../components/common/Header';
 import PasswordDots from '../../components/common/PasswordDots';
+import { CommonActions } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 const PIN_LENGTH = 6;
@@ -146,10 +147,28 @@ export default function ChangePaymentPassword({ navigation }) {
         if (response?.status === 'success') {
           setStep(4);
           setTimeout(() => {
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Settings' }],
-            });
+            navigation.dispatch(
+              CommonActions.reset({
+                index: 0,
+                routes: [
+                  {
+                    name: 'MainStack',
+                    state: {
+                      routes: [
+                        {
+                          name: 'Tabs',
+                          state: {
+                            routes: [{ name: 'Settings' }],
+                            index: 2, // Settings tab index
+                          },
+                        },
+                      ],
+                      index: 0,
+                    },
+                  },
+                ],
+              })
+            );
           }, 2000);
         } else {
           setError('Failed to change password');

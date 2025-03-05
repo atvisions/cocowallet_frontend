@@ -20,6 +20,15 @@ import { zhCN } from 'date-fns/locale';
 export default function TransactionDetailScreen({ route, navigation }) {
   const { transaction } = route.params || {};
   
+  // 添加打印信息
+  console.log('Transaction Details:', {
+    status: transaction?.status,
+    type: transaction?.tx_type,
+    token: transaction?.token,
+    token_info: transaction?.token_info,
+    full_transaction: transaction
+  });
+  
   if (!transaction) {
     return (
       <SafeAreaView style={styles.container}>
@@ -58,12 +67,7 @@ export default function TransactionDetailScreen({ route, navigation }) {
   };
   
   const openExplorer = (txHash) => {
-    // 根据不同链选择不同的区块浏览器
-    let explorerUrl = '';
-    
-    // 这里假设是 Solana 链
-    explorerUrl = `https://explorer.solana.com/tx/${txHash}`;
-    
+    let explorerUrl = `https://explorer.solana.com/tx/${txHash}`;
     Linking.openURL(explorerUrl).catch(err => {
       console.error('Unable to open browser:', err);
       Alert.alert('Error', 'Unable to open block explorer');
@@ -72,6 +76,7 @@ export default function TransactionDetailScreen({ route, navigation }) {
   
   const getStatusColor = (status) => {
     switch (status) {
+      case 'SUCCESS':
       case 'CONFIRMED':
         return '#1FC595';
       case 'FAILED':
@@ -87,6 +92,7 @@ export default function TransactionDetailScreen({ route, navigation }) {
   
   const getStatusText = (status) => {
     switch (status) {
+      case 'SUCCESS':
       case 'CONFIRMED':
         return 'Confirmed';
       case 'FAILED':
@@ -135,9 +141,76 @@ export default function TransactionDetailScreen({ route, navigation }) {
   const getAmountColor = (direction) => {
     return direction === 'RECEIVED' ? '#1FC595' : '#FF5C5C';
   };
+
+  const formatSolAmount = (amount) => {
+    if (!amount) return '0 SOL';
+    const value = parseFloat(amount);
+    if (value === 0) return '0 SOL';
+    
+    // 如果数值小于 0.000001，使用科学计数法
+    if (value < 0.000001) {
+      return `${value.toExponential(4)} SOL`;
+    }
+    
+    // 如果数值小于 0.001，保留 6 位小数
+    if (value < 0.001) {
+      return `${value.toFixed(6)} SOL`;
+    }
+    
+    // 其他情况保留 4 位小数
+    return `${value.toFixed(4)} SOL`;
+  };
+  
+  const getTokenInfo = () => {
+    // 如果是原生 SOL 转账
+    if (!transaction.token && !transaction.token_info) {
+      return {
+        name: 'Solana',
+        symbol: 'SOL',
+        logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
+        decimals: 9
+      };
+    }
+    
+    // 优先使用 token_info
+    if (transaction.token_info) {
+      return transaction.token_info;
+    }
+    
+    // 如果有 token 对象
+    if (transaction.token) {
+      return transaction.token;
+    }
+    
+    // 默认返回 Unknown
+    return {
+      name: 'Unknown Token',
+      symbol: '???',
+      logo: '',
+      decimals: 0
+    };
+  };
+  
+  const renderDetailItem = ({ label, value, copyable, onPress }) => (
+    <View style={styles.detailItem}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      {copyable ? (
+        <TouchableOpacity 
+          style={styles.copyContainer}
+          onPress={onPress}
+        >
+          <Text style={styles.detailValue}>{value}</Text>
+          <Ionicons name="copy-outline" size={16} color="#8E8E8E" style={styles.copyIcon} />
+        </TouchableOpacity>
+      ) : (
+        <Text style={styles.detailValue}>{value}</Text>
+      )}
+    </View>
+  );
   
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton}
@@ -149,90 +222,76 @@ export default function TransactionDetailScreen({ route, navigation }) {
         <View style={styles.placeholder} />
       </View>
       
-      <ScrollView style={styles.scrollView}>
-        <View style={styles.topSection}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {/* Transaction Overview Card */}
+        <View style={styles.overviewCard}>
           <View style={styles.tokenInfoContainer}>
-            {transaction.token?.logo ? (
-              <Image 
-                source={{ uri: transaction.token.logo }} 
-                style={styles.tokenLogo} 
-                resizeMode="contain"
-              />
-            ) : (
-              <View style={[styles.tokenLogo, styles.fallbackLogo]}>
-                <Text style={styles.fallbackLogoText}>
-                  {transaction.token?.symbol?.charAt(0) || '?'}
-                </Text>
-              </View>
-            )}
-            <Text style={styles.tokenName}>{transaction.token?.name || 'Unknown Token'}</Text>
-          </View>
-          
-          <Text style={[styles.amount, { color: getAmountColor(transaction.direction) }]}>
-            {formatAmount(transaction.amount, transaction.direction)} {transaction.token?.symbol}
-          </Text>
-          
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(transaction.status) }]}>
-            <Text style={styles.statusText}>{getStatusText(transaction.status)}</Text>
-          </View>
-        </View>
-        
-        <View style={styles.detailsSection}>
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Transaction Type</Text>
-            <Text style={styles.detailValue}>
-              {getTransactionTypeText(transaction.tx_type)} ({getDirectionText(transaction.direction)})
-            </Text>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>From</Text>
-            <TouchableOpacity 
-              style={styles.copyContainer}
-              onPress={() => copyToClipboard(transaction.from_address, 'Sender address')}
-            >
-              <Text style={styles.detailValue}>{formatAddress(transaction.from_address)}</Text>
-              <Ionicons name="copy-outline" size={16} color="#8E8E8E" style={styles.copyIcon} />
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>To</Text>
-            <TouchableOpacity 
-              style={styles.copyContainer}
-              onPress={() => copyToClipboard(transaction.to_address, 'Recipient address')}
-            >
-              <Text style={styles.detailValue}>{formatAddress(transaction.to_address)}</Text>
-              <Ionicons name="copy-outline" size={16} color="#8E8E8E" style={styles.copyIcon} />
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Transaction Hash</Text>
-            <TouchableOpacity 
-              style={styles.copyContainer}
-              onPress={() => copyToClipboard(transaction.tx_hash, 'Transaction hash')}
-            >
-              <Text style={styles.detailValue}>{formatAddress(transaction.tx_hash)}</Text>
-              <Ionicons name="copy-outline" size={16} color="#8E8E8E" style={styles.copyIcon} />
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Transaction Time</Text>
-            <Text style={styles.detailValue}>
-              {formatFullDate(transaction.block_timestamp || transaction.created_at)}
-            </Text>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Gas Fee</Text>
-            <Text style={styles.detailValue}>
-              {transaction.gas_fee || (transaction.gas_price * transaction.gas_used)} SOL
-            </Text>
+            {(() => {
+              const tokenInfo = getTokenInfo();
+              return (
+                <>
+                  {tokenInfo.logo ? (
+                    <Image 
+                      source={{ uri: tokenInfo.logo }} 
+                      style={styles.tokenLogo} 
+                      resizeMode="contain"
+                    />
+                  ) : (
+                    <View style={[styles.tokenLogo, styles.fallbackLogo]}>
+                      <Text style={styles.fallbackLogoText}>
+                        {tokenInfo.symbol?.charAt(0) || '?'}
+                      </Text>
+                    </View>
+                  )}
+                  <Text style={styles.tokenName}>{tokenInfo.name}</Text>
+                  <Text style={[styles.amount, { color: getAmountColor(transaction.direction) }]}>
+                    {formatAmount(transaction.amount, transaction.direction)} {tokenInfo.symbol}
+                  </Text>
+                </>
+              );
+            })()}
+            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(transaction.status) }]}>
+              <Text style={styles.statusText}>{getStatusText(transaction.status)}</Text>
+            </View>
           </View>
         </View>
+
+        {/* Transaction Details Card */}
+        <View style={styles.detailsCard}>
+          <Text style={styles.sectionTitle}>Transaction Details</Text>
+          {renderDetailItem({
+            label: "Transaction Type",
+            value: `${getTransactionTypeText(transaction.tx_type)} (${getDirectionText(transaction.direction)})`,
+          })}
+          {renderDetailItem({
+            label: "From",
+            value: formatAddress(transaction.from_address),
+            copyable: true,
+            onPress: () => copyToClipboard(transaction.from_address, 'Sender address')
+          })}
+          {renderDetailItem({
+            label: "To",
+            value: formatAddress(transaction.to_address),
+            copyable: true,
+            onPress: () => copyToClipboard(transaction.to_address, 'Recipient address')
+          })}
+          {renderDetailItem({
+            label: "Transaction Hash",
+            value: formatAddress(transaction.tx_hash),
+            copyable: true,
+            onPress: () => copyToClipboard(transaction.tx_hash, 'Transaction hash')
+          })}
+          {renderDetailItem({
+            label: "Transaction Time",
+            value: formatFullDate(transaction.block_timestamp || transaction.created_at)
+          })}
+          {renderDetailItem({
+            label: "Gas Fee",
+            value: formatSolAmount(transaction.gas_fee || (transaction.gas_price * transaction.gas_used))
+          })}
+        </View>
         
+        {/* View in Explorer Button */}
         <TouchableOpacity 
           style={styles.explorerButton}
           onPress={() => openExplorer(transaction.tx_hash)}
@@ -257,7 +316,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#272C52',
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   backButton: {
     padding: 8,
@@ -273,24 +332,28 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  topSection: {
-    alignItems: 'center',
-    padding: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: '#272C52',
+  overviewCard: {
+    margin: 16,
+    padding: 20,
+    backgroundColor: '#1E2443',
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   tokenInfoContainer: {
     alignItems: 'center',
-    marginBottom: 16,
   },
   tokenLogo: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    marginBottom: 8,
-    backgroundColor: '#272C52',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    marginBottom: 12,
   },
   fallbackLogo: {
+    backgroundColor: '#2A3154',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -303,34 +366,48 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: 'bold',
+    marginBottom: 8,
   },
   amount: {
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 16,
   },
   statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: '#1FC595',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
   },
   statusText: {
     color: '#FFFFFF',
     fontSize: 14,
+    fontWeight: '600',
+  },
+  detailsCard: {
+    margin: 16,
+    marginTop: 0,
+    padding: 20,
+    backgroundColor: '#1E2443',
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  sectionTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
     fontWeight: 'bold',
+    marginBottom: 16,
   },
-  detailsSection: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#272C52',
-  },
-  detailRow: {
+  detailItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#272C52',
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   detailLabel: {
     color: '#8E8E8E',
@@ -340,14 +417,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     textAlign: 'right',
-    maxWidth: '60%',
   },
   copyContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   copyIcon: {
-    marginLeft: 6,
+    marginLeft: 8,
   },
   explorerButton: {
     flexDirection: 'row',
@@ -355,6 +431,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#3A3F64',
     margin: 16,
+    marginTop: 0,
     padding: 16,
     borderRadius: 12,
   },

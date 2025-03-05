@@ -10,6 +10,7 @@ import ShowMnemonic from '../screens/wallet/ShowMnemonic';
 import VerifyMnemonic from '../screens/wallet/VerifyMnemonic';
 import ImportWallet from '../screens/wallet/ImportWallet';
 import SetPaymentPassword from '../screens/auth/SetPaymentPassword';
+import ChangePaymentPassword from '../screens/auth/ChangePaymentPassword';
 import RenameWallet from '../screens/wallet/RenameWallet';
 import ShowPrivateKey from '../screens/wallet/ShowPrivateKey';
 import LoadingWallet from '../screens/wallet/LoadingWallet';
@@ -64,6 +65,7 @@ const AppNavigator = () => {
       <Stack.Screen name="VerifyMnemonic" component={VerifyMnemonic} />
       <Stack.Screen name="ImportWallet" component={ImportWallet} />
       <Stack.Screen name="SetPaymentPassword" component={SetPaymentPassword} />
+      <Stack.Screen name="ChangePaymentPassword" component={ChangePaymentPassword} />
       <Stack.Screen name="RenameWallet" component={RenameWallet} />
       <Stack.Screen name="ShowPrivateKey" component={ShowPrivateKey} />
       <Stack.Screen name="PrivateKeyDisplay" component={PrivateKeyDisplay} />
