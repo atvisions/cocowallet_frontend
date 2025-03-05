@@ -60,7 +60,7 @@ export default function TransactionLoadingScreen({ navigation, route }) {
         throw new Error('Missing transaction data');
       }
 
-      const { amount, token, tokenInfo, selectedWallet, wallet_id } = transactionData;
+      const { amount, token, tokenInfo, selectedWallet, wallet_id, token_address } = transactionData;
       
       // 确保有钱包信息
       if (!selectedWallet && !wallet_id) {
@@ -73,6 +73,13 @@ export default function TransactionLoadingScreen({ navigation, route }) {
         id: wallet_id,
         chain: transactionData.chain || 'SOL'
       };
+
+      // 打印完整的交易数据（用于调试）
+      console.log('Transaction data before sending:', {
+        ...transactionData,
+        token_address: token_address || tokenInfo?.address,
+        payment_password: '***'
+      });
       
       // 发送原始金额，让后端处理精度转换
       const params = {
@@ -80,12 +87,19 @@ export default function TransactionLoadingScreen({ navigation, route }) {
         to_address: transactionData.to_address,
         amount: amount,  // 使用原始金额
         payment_password: transactionData.password,
-        token_address: tokenInfo?.address
+        token_address: token_address || tokenInfo?.address  // 优先使用 token_address
       };
+
+      // 确保 token_address 存在
+      if (!params.token_address) {
+        console.error('Missing token_address in transaction data:', transactionData);
+        throw new Error('代币地址不能为空');
+      }
 
       console.log('Sending Solana transaction with params:', {
         ...params,
-        payment_password: '***'
+        payment_password: '***',
+        token_address: params.token_address // 确保打印 token_address
       });
 
       const response = await api.sendSolanaTransaction(
@@ -182,7 +196,7 @@ export default function TransactionLoadingScreen({ navigation, route }) {
             deviceId,
             txHash,
             transactionData.wallet_id,
-            transactionData.chain || 'SOL' // 添加chain参数以区分不同链的交易
+            'SOL'
           );
 
           console.log('Transaction status response:', response);

@@ -112,7 +112,7 @@ const WalletScreen = ({ navigation }) => {
       setError(null);
 
       const deviceId = await DeviceManager.getDeviceId();
-      console.log('Loading tokens for wallet:', {
+      console.log('[WalletScreen] Loading tokens:', {
         deviceId,
         walletId: selectedWallet.id,
         chain: selectedWallet.chain
@@ -124,7 +124,12 @@ const WalletScreen = ({ navigation }) => {
         selectedWallet.chain
       );
 
-      console.log('Token response:', response);
+      console.log('[WalletScreen] Token response:', {
+        status: response?.status,
+        totalTokens: response?.data?.data?.tokens?.length,
+        allTokens: response?.data?.data?.tokens,
+        visibleTokens: response?.data?.data?.tokens?.filter(token => token.is_visible)
+      });
 
       if (response?.status === 'success' && response.data?.data) {
         const { tokens, total_value_usd } = response.data.data;
@@ -133,8 +138,33 @@ const WalletScreen = ({ navigation }) => {
         const visibleTokens = tokens.filter(token => token.is_visible);
         console.log('Visible tokens:', visibleTokens);
         
+        // 计算24小时变化率
+        let totalCurrentValue = 0;
+        let total24hAgoValue = 0;
+        
+        visibleTokens.forEach(token => {
+          const currentValue = parseFloat(token.value_usd) || 0;
+          const change24h = parseFloat(token.price_change_24h) || 0;
+          
+          totalCurrentValue += currentValue;
+          // 根据当前价值和24小时变化率，计算24小时前的价值
+          const value24hAgo = currentValue / (1 + (change24h / 100));
+          total24hAgoValue += value24hAgo;
+        });
+        
+        // 计算总的24小时变化率
+        const totalChange24h = totalCurrentValue > 0 ? 
+          ((totalCurrentValue - total24hAgoValue) / total24hAgoValue) * 100 : 0;
+        
+        console.log('Portfolio 24h change:', {
+          totalCurrentValue,
+          total24hAgoValue,
+          totalChange24h
+        });
+        
         setTokens(visibleTokens);
         setTotalBalance(total_value_usd || '0.00');
+        setChange24h(totalChange24h);
       } else {
         console.error('Invalid token response:', response);
         setError('Failed to load tokens');

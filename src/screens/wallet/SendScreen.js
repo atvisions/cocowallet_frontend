@@ -37,6 +37,7 @@ export default function SendScreen({ navigation, route }) {
   const [isLoading, setIsLoading] = useState(true);
   const [, updateState] = useState();
   const forceUpdate = () => updateState({});
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     console.log('Selected wallet changed:', selectedWallet); // 添加日志
@@ -74,62 +75,46 @@ export default function SendScreen({ navigation, route }) {
   }, [selectedToken]);
 
   const loadTokens = async () => {
+    if (!selectedWallet?.id) return;
+    
     try {
       setIsLoading(true);
-      const deviceId = await DeviceManager.getDeviceId();
+      setError(null);
       
-      console.log('Loading tokens for wallet:', {
+      const deviceId = await DeviceManager.getDeviceId();
+      console.log('[SendScreen] Loading tokens:', {
+        deviceId,
         walletId: selectedWallet.id,
-        chain: selectedWallet.chain.toLowerCase(),
-        deviceId
+        chain: selectedWallet.chain
       });
       
-      // 获取钱包代币列表
-      const response = await api.getWalletTokens(
-        deviceId,
+      const response = await api.getTokensManagement(
         selectedWallet.id,
-        selectedWallet.chain.toLowerCase()
+        deviceId,
+        selectedWallet.chain
       );
       
-      console.log('Tokens API response:', response);
+      console.log('[SendScreen] Token response:', response);
       
-      // 修正：检查正确的数据结构
       if (response?.status === 'success' && response.data?.data?.tokens) {
-        const tokensData = response.data.data.tokens;
+        const tokens = response.data.data.tokens;
+        setTokenList(tokens);
         
-        // 只显示可见的代币
-        const visibleTokens = tokensData.filter(token => token.is_visible);
-        
-        // 处理代币数据，确保余额格式正确
-        const processedTokens = visibleTokens.map(token => ({
-          token_address: token.address,
-          name: token.name,
-          symbol: token.symbol,
-          decimals: token.decimals,
-          logo: token.logo,
-          balance: token.balance,
-          balance_formatted: token.balance_formatted,
-          price_usd: token.price_usd,
-          value_usd: token.value_usd,
-          price_change_24h: token.price_change_24h,
-          is_native: token.is_native,
-          is_visible: token.is_visible
-        }));
-        
-        console.log('Processed tokens:', processedTokens);
-        setTokenList(processedTokens);
-        
-        // 默认选择第一个代币
-        if (processedTokens.length > 0) {
-          console.log('Setting default token:', processedTokens[0]);
-          setSelectedToken(processedTokens[0]);
+        if (selectedToken) {
+          const token = tokens.find(t => t.address === selectedToken.address);
+          if (token) {
+            setSelectedToken(token);
+          }
+        } else if (tokens.length > 0) {
+          setSelectedToken(tokens[0]);
         }
       } else {
-        console.warn('No tokens data in response or invalid format:', response);
+        console.error('[SendScreen] Invalid token response:', response);
+        setError('Failed to load tokens');
       }
     } catch (error) {
-      console.error('加载代币失败:', error);
-      Alert.alert('Error', 'Failed to load tokens');
+      console.error('[SendScreen] Failed to load tokens:', error);
+      setError('Failed to load tokens');
     } finally {
       setIsLoading(false);
     }
@@ -167,64 +152,66 @@ export default function SendScreen({ navigation, route }) {
 
   const handleContinue = async () => {
     if (!recipientAddress.trim()) {
-      Alert.alert('Error', 'Please enter recipient address');
+      Alert.alert('错误', '请输入接收地址');
       return;
     }
 
     if (!validateAddress(recipientAddress)) {
-      Alert.alert('Error', 'Invalid recipient address');
+      Alert.alert('错误', '无效的接收地址');
       return;
     }
 
     if (!amount.trim() || !validateAmount(amount)) {
-      Alert.alert('Error', 'Invalid amount');
+      Alert.alert('错误', '无效的转账金额');
       return;
     }
 
-    // 检查余额是否足够
-    const amountToSend = parseFloat(amount);
-    const formattedBalance = parseFloat(selectedToken?.balance_formatted || '0');
-    
-    if (amountToSend > formattedBalance) {
-      Alert.alert('Error', 'Insufficient balance');
+    if (!selectedToken) {
+      Alert.alert('错误', '请选择代币');
       return;
     }
 
     try {
-      // 获取设备ID
       const deviceId = await DeviceManager.getDeviceId();
       
-      // 准备交易数据
+      // 准备交易数据，直接使用用户输入的原始数量
       const transactionData = {
         wallet_id: selectedWallet.id,
         to_address: recipientAddress,
-        amount: amount,
-        token: selectedToken?.is_native ? 'native' : selectedToken?.token_address,
+        amount: amount, // 直接使用用户输入的数量
+        token_address: selectedToken.address || selectedToken.token_address, // 确保使用正确的代币地址
         device_id: deviceId,
-        chain: selectedWallet.chain,
-        token_symbol: selectedToken?.symbol,
-        token_decimals: selectedToken?.decimals,
-        tokenInfo: {
-          address: selectedToken?.token_address,
-          symbol: selectedToken?.symbol,
-          decimals: selectedToken?.decimals,
-          is_native: selectedToken?.is_native
-        }
+        chain: selectedWallet.chain
       };
+
+      // 打印完整的交易数据用于调试
+      console.log('Sending transaction with data:', {
+        ...transactionData,
+        selectedToken: {
+          address: selectedToken.address || selectedToken.token_address,
+          symbol: selectedToken.symbol,
+          decimals: selectedToken.decimals,
+          is_native: selectedToken.is_native
+        }
+      });
       
-      // 先导航到确认页面
       navigation.navigate('SendConfirmation', {
         recipientAddress,
         amount,
-        token: selectedToken?.symbol,
-        tokenInfo: transactionData.tokenInfo,
+        token: selectedToken.symbol,
+        tokenInfo: {
+          address: selectedToken.address || selectedToken.token_address,
+          symbol: selectedToken.symbol,
+          decimals: selectedToken.decimals,
+          is_native: selectedToken.is_native
+        },
         selectedWallet,
-        transactionData  // 传递完整的交易数据
+        transactionData
       });
       
     } catch (error) {
       console.error('准备交易失败:', error);
-      Alert.alert('Error', 'Failed to prepare transaction');
+      Alert.alert('错误', '准备交易失败');
     }
   };
 
@@ -236,18 +223,54 @@ export default function SendScreen({ navigation, route }) {
         return;
       }
 
-      // 直接使用已经加载的 tokenList
-      navigation.navigate('TokenListScreen', {
-        tokens: tokenList, // 使用已经加载的完整代币列表
-        onSelect: (token) => {
-          console.log('Selected token from list:', token);
-          setSelectedToken(token);
-          setAmount('');
+      // 直接使用已加载的 tokenList，避免重复请求
+      if (tokenList.length > 0) {
+        navigation.navigate('TokenListScreen', {
+          tokens: tokenList,
+          onSelect: (token) => {
+            console.log('Selected token details:', token);
+            // 确保保存完整的代币信息
+            setSelectedToken({
+              ...token,
+              token_address: token.token_address || token.address,
+              is_native: token.is_native || false,
+              decimals: token.decimals || 9,
+            });
+            setAmount('');
+          }
+        });
+      } else {
+        // 如果没有缓存的代币列表，重新加载
+        const deviceId = await DeviceManager.getDeviceId();
+        const response = await api.getTokensManagement(
+          selectedWallet.id,
+          deviceId,
+          selectedWallet.chain
+        );
+
+        if (response?.status === 'success' && response.data?.data?.tokens) {
+          const tokens = response.data.data.tokens;
+          navigation.navigate('TokenListScreen', {
+            tokens,
+            onSelect: (token) => {
+              console.log('Selected token details:', token);
+              // 确保保存完整的代币信息
+              setSelectedToken({
+                ...token,
+                token_address: token.token_address || token.address,
+                is_native: token.is_native || false,
+                decimals: token.decimals || 9,
+              });
+              setAmount('');
+            }
+          });
+        } else {
+          throw new Error('Failed to load tokens');
         }
-      });
+      }
     } catch (error) {
       console.error('Token selection error:', error);
-      Alert.alert('Error', 'Failed to load tokens');
+      Alert.alert('错误', '加载代币列表失败');
     }
   };
 

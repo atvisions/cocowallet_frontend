@@ -56,42 +56,37 @@ const TokenManagement = ({ route, navigation }) => {
       setLoading(true);
       const deviceId = await DeviceManager.getDeviceId();
       
-      // 检查缓存
+      console.log('[TokenManagement] Loading tokens:', {
+        deviceId,
+        walletId: selectedWallet.id,
+        chain: selectedWallet.chain
+      });
+
+      // 强制刷新或没有缓存时才请求新数据
       const cacheKey = `token_management_${selectedWallet.id}`;
       const cachedData = await AsyncStorage.getItem(cacheKey);
+      const now = Date.now();
 
-      // 如果有缓存且未过期且不是强制刷新
       if (!forceRefresh && cachedData) {
         const { tokens: cachedTokens, timestamp } = JSON.parse(cachedData);
-        if (Date.now() - timestamp < CACHE_DURATION) {
-          console.log('Using cached token data:', cachedTokens);
+        if (now - timestamp < CACHE_DURATION) {
+          console.log('Using cached token data');
           setTokens(cachedTokens);
           setLoading(false);
           return;
         }
       }
 
-      // 使用 getTokensManagement 而不是 getWalletTokens
       const response = await api.getTokensManagement(
-        selectedWallet.id, 
-        deviceId, 
+        selectedWallet.id,
+        deviceId,
         selectedWallet.chain
       );
 
-      console.log('API Response:', response);
+      console.log('[TokenManagement] Token response:', response);
 
-      if (response?.status === 'success' && response.data) {
-        let newTokens = [];
-        
-        // 处理嵌套的数据结构
-        if (response.data?.data?.tokens) {
-          newTokens = response.data.data.tokens;
-        } else if (response.data?.tokens) {
-          newTokens = response.data.tokens;
-        }
-
-        // 确保每个代币都有必要的字段
-        newTokens = newTokens.map(token => ({
+      if (response?.status === 'success' && response.data?.data?.tokens) {
+        const newTokens = response.data.data.tokens.map(token => ({
           token_address: token.token_address || token.address,
           name: token.name || 'Unknown Token',
           symbol: token.symbol || '',
@@ -99,16 +94,15 @@ const TokenManagement = ({ route, navigation }) => {
           is_visible: typeof token.is_visible === 'boolean' ? token.is_visible : true,
         }));
 
-        console.log('Processed tokens:', newTokens);
         setTokens(newTokens);
         
         // 更新缓存
         await AsyncStorage.setItem(cacheKey, JSON.stringify({
           tokens: newTokens,
-          timestamp: Date.now()
+          timestamp: now
         }));
       } else {
-        console.error('Invalid response format:', response);
+        console.error('[TokenManagement] Invalid token response:', response);
       }
     } catch (error) {
       console.error('Failed to load tokens:', error);

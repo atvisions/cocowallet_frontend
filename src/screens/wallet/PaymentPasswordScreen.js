@@ -95,27 +95,34 @@ export default function PaymentPasswordScreen({ route, navigation }) {
     }
   };
 
-  const handlePasswordVerified = (password) => {
+  const handlePasswordVerified = async (password) => {
     console.log('Password verification successful, executing callback...');
     
-    if (route.params?.purpose === 'send_transaction') {
-      const { transactionData, nextScreen } = route.params;
-      
-      // 确保 transactionData 包含所有必要的信息
-      console.log('Transaction data:', transactionData);
-      
-      // 导航到交易加载页面
-      navigation.navigate(nextScreen || 'TransactionLoading', {
-        ...transactionData,
-        password: password // 添加密码到参数中
-      });
-    } else if (route.params?.onSuccess) {
-      // 执行其他成功回调
-      route.params.onSuccess(password);
-      navigation.goBack();
-    } else {
-      // 默认行为
-      navigation.goBack();
+    try {
+      if (route.params?.onSuccess) {
+        // 直接执行回调函数，传递密码
+        await route.params.onSuccess(password);
+      } else if (route.params?.purpose === 'send_transaction') {
+        const { transactionData, nextScreen } = route.params;
+        
+        // 确保 transactionData 包含所有必要的信息
+        console.log('Transaction data:', {
+          ...transactionData,
+          token_address: transactionData.token_address
+        });
+        
+        // 导航到交易加载页面
+        navigation.navigate(nextScreen || 'TransactionLoading', {
+          ...transactionData,
+          payment_password: password // 使用 payment_password 而不是 password
+        });
+      } else {
+        // 默认行为
+        navigation.goBack();
+      }
+    } catch (error) {
+      console.error('Error in password verification callback:', error);
+      Alert.alert('错误', error?.message || '交易失败，请重试');
     }
   };
 

@@ -581,33 +581,45 @@ export const api = {
 
   async sendSolanaTransaction(walletId, params) {
     try {
+      // 确保 token_address 存在
+      if (!params.token_address) {
+        console.error('Missing token_address in params:', params);
+        throw new Error('代币地址不能为空');
+      }
+
       console.log('发送 Solana 交易请求:', {
+        url: `/solana/wallets/${walletId}/transfer/`,
         walletId,
         params: {
           ...params,
-          payment_password: '***' // 隐藏密码
-        },
-        url: `/solana/wallets/${walletId}/transfer/`
+          payment_password: '***',
+          token_address: params.token_address // 确保打印 token_address
+        }
+      });
+
+      const requestData = {
+        amount: params.amount,
+        to_address: params.to_address,
+        token_address: params.token_address, // 确保包含 token_address
+        device_id: params.device_id,
+        payment_password: params.payment_password
+      };
+
+      console.log('Request data:', {
+        ...requestData,
+        payment_password: '***',
+        token_address: requestData.token_address // 确保打印 token_address
       });
 
       const response = await instance.post(
         `/solana/wallets/${walletId}/transfer/`,
-        params
+        requestData
       );
 
-      console.log('Solana 交易响应:', response.data);
       return response.data;
     } catch (error) {
-      console.error('Solana 交易错误:', {
-        status: error.response?.status,
-        data: error.response?.data,
-        error: error.message
-      });
-      
-      if (error.response) {
-        throw error.response.data;
-      }
-      throw {
+      console.error('Solana 交易错误:', error.response?.data || error);
+      throw error.response?.data || {
         status: 'error',
         message: '网络错误，请检查网络连接'
       };
@@ -717,22 +729,4 @@ export const selectChain = async (deviceId, selectedChain) => {
     }
 
     return await response.json();
-};
-
-export const sendSolanaTransaction = async (walletId, params) => {
-  try {
-    const response = await instance.post(
-      `/solana/wallets/${walletId}/transfer/`,
-      params
-    );
-    return response.data;
-  } catch (error) {
-    if (error.response) {
-      throw error.response.data;
-    }
-    throw {
-      status: 'error',
-      message: '网络错误，请检查网络连接'
-    };
-  }
 };
