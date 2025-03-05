@@ -60,7 +60,7 @@ export default function TransactionLoadingScreen({ navigation, route }) {
         throw new Error('Missing transaction data');
       }
 
-      const { amount, token, tokenInfo, selectedWallet, wallet_id, token_address } = transactionData;
+      const { amount, token, tokenInfo, selectedWallet, wallet_id, is_native } = transactionData;
       
       // 确保有钱包信息
       if (!selectedWallet && !wallet_id) {
@@ -77,29 +77,32 @@ export default function TransactionLoadingScreen({ navigation, route }) {
       // 打印完整的交易数据（用于调试）
       console.log('Transaction data before sending:', {
         ...transactionData,
-        token_address: token_address || tokenInfo?.address,
         payment_password: '***'
       });
       
-      // 发送原始金额，让后端处理精度转换
+      // 构建基本参数
       const params = {
         device_id: await DeviceManager.getDeviceId(),
         to_address: transactionData.to_address,
-        amount: amount,  // 使用原始金额
+        amount: amount,
         payment_password: transactionData.password,
-        token_address: token_address || tokenInfo?.address  // 优先使用 token_address
+        is_native: transactionData.is_native
       };
 
-      // 确保 token_address 存在
-      if (!params.token_address) {
-        console.error('Missing token_address in transaction data:', transactionData);
-        throw new Error('代币地址不能为空');
+      // 处理代币地址
+      // 1. 如果是原生 SOL 转账，不添加 token_address
+      // 2. 如果是其他代币，确保添加正确的 token_address
+      if (!transactionData.is_native) {
+        const tokenAddress = transactionData.token_address || tokenInfo?.address;
+        if (!tokenAddress) {
+          throw new Error('代币地址不能为空');
+        }
+        params.token_address = tokenAddress;
       }
 
       console.log('Sending Solana transaction with params:', {
         ...params,
-        payment_password: '***',
-        token_address: params.token_address // 确保打印 token_address
+        payment_password: '***'
       });
 
       const response = await api.sendSolanaTransaction(

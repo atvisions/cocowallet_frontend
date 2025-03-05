@@ -588,48 +588,18 @@ export const api = {
 
   async sendSolanaTransaction(walletId, params) {
     try {
-      // 确保 token_address 存在
-      if (!params.token_address) {
-        console.error('Missing token_address in params:', params);
-        throw new Error('代币地址不能为空');
-      }
-
-      console.log('发送 Solana 交易请求:', {
-        url: `/solana/wallets/${walletId}/transfer/`,
-        walletId,
-        params: {
-          ...params,
-          payment_password: '***',
-          token_address: params.token_address // 确保打印 token_address
-        }
-      });
-
-      const requestData = {
-        amount: params.amount,
-        to_address: params.to_address,
-        token_address: params.token_address, // 确保包含 token_address
-        device_id: params.device_id,
-        payment_password: params.payment_password
-      };
-
-      console.log('Request data:', {
-        ...requestData,
-        payment_password: '***',
-        token_address: requestData.token_address // 确保打印 token_address
-      });
-
       const response = await instance.post(
         `/solana/wallets/${walletId}/transfer/`,
-        requestData
+        {
+          ...params,
+          // 确保原生 SOL 转账时不传递 token_address
+          ...(params.is_native ? {} : { token_address: params.token_address })
+        }
       );
-
       return response.data;
     } catch (error) {
-      console.error('Solana 交易错误:', error.response?.data || error);
-      throw error.response?.data || {
-        status: 'error',
-        message: '网络错误，请检查网络连接'
-      };
+      console.error('Solana transaction error:', error);
+      throw error;
     }
   },
 

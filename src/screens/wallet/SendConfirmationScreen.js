@@ -68,29 +68,40 @@ export default function SendConfirmationScreen({ navigation, route }) {
     // 检查是否是Solana链上的代币转账
     const chainType = (tokenInfo.chain || selectedWallet.chain || '').toUpperCase();
     const isSolana = chainType === 'SOL' || chainType === 'SOLANA';
+    const isNative = tokenInfo.is_native || tokenInfo.symbol === 'SOL';
     
-    // 如果是Solana代币，添加创建代币账户的标志
-    if (isSolana && !tokenInfo.is_native) {
-      transactionData.create_associated_token_account = true;
+    // 构建交易数据
+    const finalTransactionData = {
+      ...transactionData,
+      is_native: isNative
+    };
+
+    // 只有在非原生代币时才添加 token_address
+    if (!isNative) {
+      finalTransactionData.token_address = transactionData.token_address || tokenInfo?.address;
+      // 如果是Solana代币，添加创建代币账户的标志
+      if (isSolana) {
+        finalTransactionData.create_associated_token_account = true;
+      }
     }
     
     navigation.navigate('PaymentPassword', {
       title: 'Confirm Transaction',
       purpose: 'send_transaction',
-      transactionData: transactionData,
+      transactionData: finalTransactionData,
       onSuccess: async (password) => {
         try {
-          const finalTransactionData = {
-            ...transactionData,
+          const finalData = {
+            ...finalTransactionData,
             password
           };
           
           console.log('Navigating to TransactionLoading with data:', {
-            ...finalTransactionData,
+            ...finalData,
             password: '***'
           });
           
-          navigation.replace('TransactionLoading', finalTransactionData);
+          navigation.replace('TransactionLoading', finalData);
         } catch (error) {
           console.error('Transaction preparation error:', error);
           setIsProcessing(false);

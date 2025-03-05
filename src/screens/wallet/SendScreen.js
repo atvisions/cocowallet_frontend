@@ -174,21 +174,23 @@ export default function SendScreen({ navigation, route }) {
     try {
       const deviceId = await DeviceManager.getDeviceId();
       
-      // 准备交易数据，直接使用用户输入的原始数量
       const transactionData = {
         wallet_id: selectedWallet.id,
         to_address: recipientAddress,
-        amount: amount, // 直接使用用户输入的数量
-        token_address: selectedToken.address || selectedToken.token_address, // 确保使用正确的代币地址
+        amount: amount,
         device_id: deviceId,
-        chain: selectedWallet.chain
+        chain: selectedWallet.chain,
+        is_native: selectedToken.is_native || selectedToken.symbol === 'SOL'
       };
 
-      // 打印完整的交易数据用于调试
+      // 只有在非原生代币时才添加 token_address
+      if (!transactionData.is_native) {
+        transactionData.token_address = selectedToken.address || selectedToken.token_address;
+      }
+
       console.log('Sending transaction with data:', {
         ...transactionData,
         selectedToken: {
-          address: selectedToken.address || selectedToken.token_address,
           symbol: selectedToken.symbol,
           decimals: selectedToken.decimals,
           is_native: selectedToken.is_native
@@ -203,7 +205,7 @@ export default function SendScreen({ navigation, route }) {
           address: selectedToken.address || selectedToken.token_address,
           symbol: selectedToken.symbol,
           decimals: selectedToken.decimals,
-          is_native: selectedToken.is_native
+          is_native: selectedToken.is_native || selectedToken.symbol === 'SOL'
         },
         selectedWallet,
         transactionData
