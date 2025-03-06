@@ -427,38 +427,50 @@ export const api = {
     }
   },
 
-  getWalletTokens: async (deviceId, walletId, chain) => {
-    const chainPath = getChainPath(chain);
+  async getWalletTokens(deviceId, walletId, chain, signal) {
     try {
-      console.log('Fetching wallet tokens:', { deviceId, walletId, chain, chainPath });
+      const chainPath = chain.toLowerCase() === 'sol' ? 'solana' : 'evm';
+      const url = `${BASE_URL}/${chainPath}/wallets/${walletId}/tokens/`;
       
-      const response = await instance.get(
-        `/${chainPath}/wallets/${walletId}/tokens/`,
-        {
-          params: { device_id: deviceId }
-        }
-      );
+      console.log('发送请求:', {
+        url,
+        deviceId,
+        walletId,
+        chain
+      });
+
+      const response = await axios.get(url, {
+        params: {
+          device_id: deviceId
+        },
+        headers: {
+          'Device-ID': deviceId
+        },
+        signal
+      });
       
-      console.log('API getWalletTokens response:', response.data);
+      console.log('收到响应:', {
+        status: response.status,
+        data: response.data,
+        walletId,
+        chain
+      });
       
-      // 使用后端返回的 balance_formatted
-      if (chainPath === 'evm' && response.data?.tokens) {
-        response.data.tokens = response.data.tokens.map(token => ({
-          ...token,
-          balance: token.balance_formatted || token.balance
-        }));
-      }
-      
-      return {
-        status: 'success',
-        data: response.data
-      };
+      return response.data;
     } catch (error) {
-      console.error('API getWalletTokens error:', error);
-      return {
-        status: 'error',
-        message: error.response?.data?.message || 'Failed to get tokens'
-      };
+      // 打印完整的错误信息
+      console.error('API 请求失败:', {
+        walletId,
+        chain,
+        deviceId,
+        error: error.message,
+        status: error.response?.status,
+        data: error.response?.data,  // 添加响应数据
+        url: error.config?.url,
+        headers: error.config?.headers,  // 添加请求头信息
+        params: error.config?.params     // 添加请求参数
+      });
+      throw error;
     }
   },
 
@@ -666,31 +678,15 @@ export const api = {
     }
   },
 
-  getRecommendedTokens: async (deviceId, chain) => {
+  getRecommendedTokens: async (deviceId, chain, chainPath) => {
     try {
-      const chainPath = getChainPath(chain);
       const response = await instance.get(
-        `/${chainPath}/wallets/recommended-tokens/`,
-        {
-          params: { 
-            device_id: deviceId,
-            chain: chain.toUpperCase()  // 添加 chain 参数并转换为大写
-          }
-        }
+        `/${chainPath}/wallets/recommended-tokens/?chain=${chain.toUpperCase()}`
       );
-      
-      console.log('Recommended tokens response:', response.data);
-      
-      return {
-        status: 'success',
-        data: response.data
-      };
+      return response.data;
     } catch (error) {
-      console.error('Failed to get recommended tokens:', error);
-      return {
-        status: 'error',
-        message: error.response?.data?.message || '获取推荐代币失败'
-      };
+      console.log('API Error Response:', error.response?.data);
+      return { status: 'success', data: { tokens: [] } }; // 返回空数组而不是抛出错误
     }
   },
 };

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../services/api';
 import { DeviceManager } from '../utils/device';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -9,6 +9,9 @@ export const WalletProvider = ({ children }) => {
   const [wallets, setWallets] = useState([]);
   const [selectedWallet, setSelectedWallet] = useState(null);
   const [selectedChain, setSelectedChain] = useState(null);
+  const [tokens, setTokens] = useState([]);
+  const [tokensData, setTokensData] = useState(new Map());
+  const lastUpdateTime = useRef(new Map());
 
   useEffect(() => {
     loadWallets();
@@ -22,54 +25,56 @@ export const WalletProvider = ({ children }) => {
 
       // 从AsyncStorage中获取上次选择的钱包ID
       const savedWalletId = await AsyncStorage.getItem('selectedWalletId');
-      console.log('Loaded saved wallet ID:', savedWalletId);
+      console.log('加载保存的钱包ID:', savedWalletId);
 
       if (savedWalletId && response.length > 0) {
         // 将savedWalletId转换为数字类型再进行比较
         const savedWalletIdNumber = parseInt(savedWalletId, 10);
-        console.log('Parsed saved wallet ID:', savedWalletIdNumber);
+        console.log('解析保存的钱包ID:', savedWalletIdNumber);
 
         // 在钱包列表中查找保存的钱包
         const savedWallet = response.find(wallet => wallet.id === savedWalletIdNumber);
-        console.log('Found saved wallet:', savedWallet?.id);
+        console.log('找到保存的钱包:', savedWallet?.id);
 
         if (savedWallet) {
-          console.log('Setting previously selected wallet:', savedWallet.id);
+          console.log('设置之前选择的钱包:', savedWallet.id);
           setSelectedWallet(savedWallet);
         } else {
           // 如果找不到保存的钱包，则选择第一个钱包
-          console.log('Saved wallet not found, selecting first wallet:', response[0].id);
+          console.log('未找到保存的钱包，选择第一个钱包:', response[0].id);
           setSelectedWallet(response[0]);
           // 更新存储的钱包ID
           await AsyncStorage.setItem('selectedWalletId', String(response[0].id));
         }
-      } else if (response.length > 0 && !selectedWallet) {
-        console.log('No saved wallet ID, selecting first wallet:', response[0].id);
+      } else if (response.length > 0) {
+        console.log('没有保存的钱包ID，选择第一个钱包:', response[0].id);
         setSelectedWallet(response[0]);
         // 更新存储的钱包ID
         await AsyncStorage.setItem('selectedWalletId', String(response[0].id));
       }
-      console.log('Loaded wallets:', response);
     } catch (error) {
-      console.error('Failed to load wallets:', error);
+      console.error('加载钱包失败:', error);
     }
   };
 
-  const updateSelectedWallet = async (wallet) => {
-    // 如果当前有选中的钱包，先清除其缓存数据
-    if (selectedWallet) {
-      await AsyncStorage.removeItem(`tokens_${selectedWallet.id}`);
+  const updateSelectedWallet = useCallback(async (wallet) => {
+    try {
+      // 先保存钱包ID到AsyncStorage
+      if (wallet?.id) {
+        await AsyncStorage.setItem('selectedWalletId', String(wallet.id));
+        console.log('保存选中的钱包ID:', wallet.id);
+      }
+      
+      // 先清空当前数据
+      setTokens([]);
+      // 延迟设置新钱包，确保清空操作完成
+      setTimeout(() => {
+        setSelectedWallet(wallet);
+      }, 0);
+    } catch (error) {
+      console.error('保存选中钱包ID失败:', error);
     }
-
-    setSelectedWallet(wallet);
-    if (wallet) {
-      // 保存选择的钱包ID到AsyncStorage，确保转换为字符串类型
-      await AsyncStorage.setItem('selectedWalletId', String(wallet.id));
-    } else {
-      // 如果wallet为null，则清除保存的钱包ID
-      await AsyncStorage.removeItem('selectedWalletId');
-    }
-  };
+  }, []);
 
   const updateSelectedChain = (chain) => {
     setSelectedChain(chain);
@@ -87,20 +92,41 @@ export const WalletProvider = ({ children }) => {
     }
   };
 
+  const updateTokensCache = useCallback((walletId, data) => {
+    setTokensData(prev => {
+      const newMap = new Map(prev);
+      newMap.set(walletId, data);
+      return newMap;
+    });
+    lastUpdateTime.current.set(walletId, Date.now());
+  }, []);
+
+  const getTokensCache = useCallback((walletId) => {
+    return {
+      data: tokensData.get(walletId),
+      lastUpdate: lastUpdateTime.current.get(walletId) || 0
+    };
+  }, [tokensData]);
+
+  const value = {
+    wallets,
+    selectedWallet,
+    selectedChain,
+    setWallets,
+    setSelectedWallet,
+    updateSelectedWallet,
+    updateSelectedChain,
+    checkAndUpdateWallets,
+    loadWallets,
+    tokens,
+    setTokens,
+    tokensData,
+    updateTokensCache,
+    getTokensCache
+  };
+
   return (
-    <WalletContext.Provider 
-      value={{
-        wallets,
-        selectedWallet,
-        selectedChain,
-        setWallets,
-        setSelectedWallet,
-        updateSelectedWallet,
-        updateSelectedChain,
-        checkAndUpdateWallets,
-        loadWallets
-      }}
-    >
+    <WalletContext.Provider value={value}>
       {children}
     </WalletContext.Provider>
   );

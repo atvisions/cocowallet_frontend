@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,7 +11,8 @@ import {
   Image,
   FlatList,
   RefreshControl,
-  Alert
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../services/api';
@@ -24,9 +25,8 @@ import { CommonActions, useFocusEffect } from '@react-navigation/native';
 import { useWalletNavigation } from '../../hooks/useWalletNavigation';
 
 const WalletScreen = ({ navigation }) => {
-  const { selectedWallet, updateSelectedWallet, setWallets, setSelectedWallet } = useWallet();
+  const { selectedWallet, tokens, setTokens, setWallets, setSelectedWallet, getTokensCache, updateTokensCache } = useWallet();
   const [wallets, setWalletsState] = useState([]);
-  const [tokens, setTokens] = useState([]);
   const [totalBalance, setTotalBalance] = useState('0.00');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -37,6 +37,9 @@ const WalletScreen = ({ navigation }) => {
   const [backgroundGradient, setBackgroundGradient] = useState(
     'rgba(31, 197, 149, 0.08)'  // 默认绿色
   );
+  const [screenKey, setScreenKey] = useState(0);
+  const currentRequestRef = useRef(null);
+  const currentWalletIdRef = useRef(null);  // 用来跟踪当前钱包ID
 
   useWalletNavigation(navigation);
 
@@ -46,14 +49,22 @@ const WalletScreen = ({ navigation }) => {
 
   useEffect(() => {
     if (selectedWallet) {
-      console.log('Selected wallet changed, loading data...', {
+      // 更新当前钱包ID引用
+      currentWalletIdRef.current = selectedWallet.id;
+      
+      // 立即清空数据
+      setTokens([]);
+      setTotalBalance('0.00');
+      setChange24h(0);
+      
+      console.log('钱包切换，准备加载新数据:', {
         walletId: selectedWallet.id,
-        walletName: selectedWallet.name,
-        avatarUrl: selectedWallet.avatar
+        chain: selectedWallet.chain
       });
+      
       loadTokens(true);
     }
-  }, [selectedWallet]);
+  }, [selectedWallet?.id]);
 
   useEffect(() => {
     if (!isLoading && wallets.length === 0) {
@@ -71,13 +82,20 @@ const WalletScreen = ({ navigation }) => {
   useEffect(() => {
     // 添加导航监听器
     const unsubscribe = navigation.addListener('focus', () => {
-      // 当页面重新获得焦点时刷新代币列表
-      loadTokens(false);  // false 表示不显示加载动画
+      // 检查缓存
+      const { data: cachedData, lastUpdate } = getTokensCache(selectedWallet?.id);
+      const cacheAge = Date.now() - lastUpdate;
+      const CACHE_TIMEOUT = 30000; // 30秒缓存时间
+
+      // 只有在没有缓存或缓存过期的情况下才重新加载
+      if (!cachedData || cacheAge >= CACHE_TIMEOUT) {
+        loadTokens(false);  // 使用 false 避免显示加载动画
+      }
     });
 
     // 清理监听器
     return unsubscribe;
-  }, [navigation]);
+  }, [navigation, selectedWallet?.id]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -112,12 +130,12 @@ const WalletScreen = ({ navigation }) => {
         
         if (!selectedWallet || !selectedWalletExists) {
           console.log('Setting initial wallet:', walletsArray[0]);
-          await updateSelectedWallet(walletsArray[0]);
+          await setSelectedWallet(walletsArray[0]);
         }
       } else {
         // No wallets exist, clear the selected wallet
         setSelectedWallet(null);
-        updateSelectedWallet(null);
+        setWallets([]); // Update the global wallet state
         setTokens([]);
         setTotalBalance('0.00');
       }
@@ -126,7 +144,6 @@ const WalletScreen = ({ navigation }) => {
       setWalletsState([]);
       setWallets([]); // Update the global wallet state
       setSelectedWallet(null);
-      updateSelectedWallet(null);
       setTokens([]);
       setTotalBalance('0.00');
     } finally {
@@ -135,11 +152,42 @@ const WalletScreen = ({ navigation }) => {
   };
 
   const loadTokens = async (showLoading = true) => {
+    const requestWalletId = currentWalletIdRef.current;
+    
     try {
+      // 首先检查缓存
+      const { data: cachedData, lastUpdate } = getTokensCache(selectedWallet?.id);
+      const cacheAge = Date.now() - lastUpdate;
+      const CACHE_TIMEOUT = 30000; // 30秒缓存时间
+      
+      // 如果有缓存且缓存时间在30秒内，直接使用缓存数据
+      if (cachedData && cacheAge < CACHE_TIMEOUT) {
+        console.log('使用缓存的代币数据:', {
+          walletId: selectedWallet?.id,
+          cacheAge: `${cacheAge}ms`
+        });
+        
+        if (requestWalletId === currentWalletIdRef.current) {
+          const { tokens: cachedTokens, total_value_usd } = cachedData;
+          const visibleTokens = cachedTokens.filter(token => token.is_visible);
+          setTokens(visibleTokens);
+          setTotalBalance(total_value_usd || '0.00');
+          calculateChange24h(visibleTokens);
+        }
+        return;
+      }
+
+      if (showLoading) {
+        setIsLoading(true);
+      }
+
       const deviceId = await DeviceManager.getDeviceId();
+      if (!selectedWallet) return;
+
       console.log('开始请求代币数据:', {
-        chain: selectedWallet.chain,
-        walletId: selectedWallet.id,
+        requestWalletId,
+        currentWalletId: selectedWallet.id,
+        chain: selectedWallet.chain
       });
 
       const response = await api.getWalletTokens(
@@ -148,53 +196,80 @@ const WalletScreen = ({ navigation }) => {
         selectedWallet.chain
       );
 
-      if (response?.status === 'success' && response.data?.data) {
-        const { tokens, total_value_usd } = response.data.data;
+      // 检查当前钱包ID是否仍然匹配
+      if (requestWalletId !== currentWalletIdRef.current) {
+        console.log('忽略过期响应:', {
+          requestWalletId,
+          currentWalletId: currentWalletIdRef.current
+        });
+        return;
+      }
+
+      if (response?.status === 'success' && response?.data?.tokens) {
+        const { tokens: newTokens, total_value_usd } = response.data;
+        const visibleTokens = newTokens.filter(token => token.is_visible);
         
-        // 只显示 is_visible 为 true 的代币
-        const visibleTokens = tokens.filter(token => token.is_visible);
-        console.log('Visible tokens:', visibleTokens);
-        
-        // 计算24小时变化率
-        let totalCurrentValue = 0;
-        let total24hAgoValue = 0;
-        
-        visibleTokens.forEach(token => {
-          const currentValue = parseFloat(token.value_usd) || 0;
-          const change24h = parseFloat(token.price_change_24h) || 0;
-          
-          totalCurrentValue += currentValue;
-          // 根据当前价值和24小时变化率，计算24小时前的价值
-          const value24hAgo = currentValue / (1 + (change24h / 100));
-          total24hAgoValue += value24hAgo;
+        console.log('设置新的代币数据:', {
+          requestWalletId,
+          currentWalletId: currentWalletIdRef.current,
+          tokensCount: visibleTokens.length
         });
         
-        // 计算总的24小时变化率
-        const totalChange24h = totalCurrentValue > 0 ? 
-          ((totalCurrentValue - total24hAgoValue) / total24hAgoValue) * 100 : 0;
+        // 更新缓存
+        updateTokensCache(selectedWallet.id, response.data);
         
-        console.log('涨跌幅:', totalChange24h);  // 简化日志输出
-        setChange24h(totalChange24h);
-        
-        setTokens(visibleTokens);
-        setTotalBalance(total_value_usd || '0.00');
-      } else {
-        console.error('Invalid token response:', response);
-        setError('Failed to load tokens');
+        // 再次检查钱包ID是否匹配
+        if (requestWalletId === currentWalletIdRef.current) {
+          setTokens(visibleTokens);
+          setTotalBalance(total_value_usd || '0.00');
+          calculateChange24h(visibleTokens);
+        }
       }
     } catch (error) {
-      console.error('API 请求失败:', error);
-      setError('Failed to load tokens');
+      console.error('加载代币失败:', error);
+      // 只有当钱包ID仍然匹配时才清空数据
+      if (requestWalletId === currentWalletIdRef.current) {
+        setTokens([]);
+        setTotalBalance('0.00');
+        setChange24h(0);
+      }
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      if (requestWalletId === currentWalletIdRef.current) {
+        setIsLoading(false);
+      }
     }
+  };
+
+  // 添加新的计算函数
+  const calculateChange24h = (tokens) => {
+    let totalCurrentValue = 0;
+    let total24hAgoValue = 0;
+    
+    tokens.forEach(token => {
+      const currentValue = parseFloat(token.value_usd) || 0;
+      const change24h = parseFloat(token.price_change_24h) || 0;
+      
+      totalCurrentValue += currentValue;
+      const value24hAgo = currentValue / (1 + (change24h / 100));
+      total24hAgoValue += value24hAgo;
+    });
+    
+    const totalChange24h = totalCurrentValue > 0 ? 
+      ((totalCurrentValue - total24hAgoValue) / total24hAgoValue) * 100 : 0;
+    
+    console.log('计算新的涨跌幅:', {
+      walletId: selectedWallet.id,
+      change24h: totalChange24h
+    });
+    
+    setChange24h(totalChange24h);
   };
 
   const handleRefresh = () => {
     setIsRefreshing(true);
-    // 强制刷新，不使用缓存
-    loadTokens(true);
+    loadTokens(false).finally(() => {
+      setIsRefreshing(false);
+    });
   };
 
   const formatChange = (change) => {
@@ -313,7 +388,7 @@ const WalletScreen = ({ navigation }) => {
         </Text>
         <TouchableOpacity 
           style={styles.retryButton}
-          onPress={() => loadTokens(true)}
+          onPress={() => loadTokens()}
         >
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
@@ -373,7 +448,7 @@ const WalletScreen = ({ navigation }) => {
 
   const handleTokenVisibilityChanged = () => {
     console.log('Token visibility changed, refreshing wallet data...');
-    loadTokens(true);  // 立即重新加载代币列表
+    loadTokens();  // 立即重新加载代币列表
   };
 
   const handleTokenManagementPress = () => {
@@ -386,16 +461,73 @@ const WalletScreen = ({ navigation }) => {
     navigation.navigate('WalletSelector');
   };
 
+  const renderTokenSkeleton = () => {
+    return Array(3).fill(0).map((_, index) => (
+      <View key={`skeleton-${index}`} style={styles.tokenItem}>
+        <View style={[styles.tokenLogo, styles.tokenLogoSkeleton]}>
+          <LinearGradient
+            colors={['rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.skeletonGradient}
+          />
+        </View>
+        <View style={styles.tokenInfo}>
+          <View style={styles.tokenHeader}>
+            <View style={[styles.tokenNameSkeleton, { width: 100 }]}>
+              <LinearGradient
+                colors={['rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.skeletonGradient}
+              />
+            </View>
+            <View style={[styles.tokenNameSkeleton, { width: 80 }]}>
+              <LinearGradient
+                colors={['rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.skeletonGradient}
+              />
+            </View>
+          </View>
+          <View style={styles.tokenDetails}>
+            <View style={[styles.tokenBalanceSkeleton, { width: 120 }]}>
+              <LinearGradient
+                colors={['rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.skeletonGradient}
+              />
+            </View>
+            <View style={[styles.tokenBalanceSkeleton, { width: 60 }]}>
+              <LinearGradient
+                colors={['rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.skeletonGradient}
+              />
+            </View>
+          </View>
+        </View>
+      </View>
+    ));
+  };
+
   const renderAssetsSection = () => (
     <View style={styles.assetsSection}>
       <View style={styles.tokenListContainer}>
-        <FlatList
-          data={tokens}
-          renderItem={renderTokenItem}
-          keyExtractor={item => `${item.chain}_${item.address}`}
-          scrollEnabled={false}
-          contentContainerStyle={styles.tokenList}
-        />
+        {isLoading ? (
+          renderTokenSkeleton()
+        ) : (
+          <FlatList
+            data={tokens}
+            renderItem={renderTokenItem}
+            keyExtractor={item => `${item.chain}_${item.address}`}
+            scrollEnabled={false}
+            contentContainerStyle={styles.tokenList}
+          />
+        )}
       </View>
     </View>
   );
@@ -518,10 +650,10 @@ const WalletScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View key={screenKey} style={styles.container}>
       <LinearGradient
         colors={[
-          backgroundGradient,  // 使用状态变量
+          backgroundGradient,
           '#171C32'
         ]}
         style={styles.backgroundGradient}
@@ -575,6 +707,7 @@ const WalletScreen = ({ navigation }) => {
               refreshing={isRefreshing}
               onRefresh={handleRefresh}
               tintColor="#1FC595"
+              colors={["#1FC595"]}
             />
           }
         >
@@ -705,6 +838,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     padding: 16,
     paddingTop: 0,  // 从 16 改为 6，整体向上移动 10
+    paddingBottom: 10,
   },
   balanceCard: {
     marginBottom: 24,
@@ -818,11 +952,10 @@ const styles = StyleSheet.create({
   tokenItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 14,  // 从 16 减少到 12
-    paddingBottom: 14,
-    paddingLeft: 12,
-    paddingRight: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
     backgroundColor: 'transparent',
+    marginBottom: 4,
   },
   tokenLogo: {
     width: 40,
@@ -910,11 +1043,29 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 1,  // 确保在渐变背景之上
   },
-  tokenItemSkeleton: {
-    height: 64,  // 匹配 tokenItem 的实际高度
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 12,
-    marginBottom: 12,
+  tokenLogoSkeleton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    overflow: 'hidden',
+  },
+  tokenNameSkeleton: {
+    height: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 4
+  },
+  tokenBalanceSkeleton: {
+    height: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  skeletonGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
 });
 

@@ -33,6 +33,7 @@ export default function SwapScreen({ navigation }) {
   const [isQuoteLoading, setIsQuoteLoading] = useState(false);
   const [isTokenSelectorVisible, setIsTokenSelectorVisible] = useState(false);
   const [selectingTokenType, setSelectingTokenType] = useState('from');
+  const [isLoadingWallet, setIsLoadingWallet] = useState(false);
 
   const [fromToken, setFromToken] = useState({
     symbol: 'SOL',
@@ -50,10 +51,22 @@ export default function SwapScreen({ navigation }) {
 
   useEffect(() => {
     if (selectedWallet) {
-      loadTokens();
-      loadRecommendedTokens();
+      setIsLoadingWallet(true);
+      setTokens([]);
+      setRecommendedTokens([]);
+      
+      const loadData = async () => {
+        try {
+          await loadTokens();
+          await loadRecommendedTokens();
+        } finally {
+          setIsLoadingWallet(false);
+        }
+      };
+      
+      loadData();
     }
-  }, [selectedWallet?.id]);
+  }, [selectedWallet?.id, selectedWallet?.chain]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -89,13 +102,17 @@ export default function SwapScreen({ navigation }) {
       if (!selectedWallet) return;
 
       const chain = selectedWallet.chain.toLowerCase();
-      const response = await api.getRecommendedTokens(deviceId, chain);
+      const chainPath = chain === 'sol' ? 'solana' : 'evm';
+      const response = await api.getRecommendedTokens(deviceId, chain, chainPath);
       
       if (response?.status === 'success' && response?.data) {
         setRecommendedTokens(response.data.tokens || []);
+      } else {
+        setRecommendedTokens([]);
       }
     } catch (error) {
-      console.error('Failed to load recommended tokens:', error);
+      console.log('Failed to get recommended tokens:', error);
+      setRecommendedTokens([]);
     }
   };
 
@@ -162,96 +179,104 @@ export default function SwapScreen({ navigation }) {
           />
         }
       >
-        {/* Swap Card */}
-        <View style={styles.swapCard}>
-          {/* From Token */}
-          <View style={styles.tokenSection}>
-            <Text style={styles.sectionLabel}>From</Text>
-            <TouchableOpacity 
-              style={styles.tokenSelector}
-              onPress={() => {
-                setSelectingTokenType('from');
-                setIsTokenSelectorVisible(true);
-              }}>
-              <Image source={{ uri: fromToken.icon || 'https://example.com/default-token.png' }} style={styles.tokenIcon} />
-              <Text style={styles.tokenSymbol}>{fromToken.symbol}</Text>
-              <Ionicons name="chevron-down" size={20} color="#FFFFFF" />
-            </TouchableOpacity>
-            <TextInput
-              style={styles.amountInput}
-              value={fromAmount}
-              onChangeText={setFromAmount}
-              placeholder="0.00"
-              placeholderTextColor="#8E8E8E"
-              keyboardType="decimal-pad"
-            />
+        {isLoadingWallet ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#1FC595" />
           </View>
+        ) : (
+          <>
+            {/* Swap Card */}
+            <View style={styles.swapCard}>
+              {/* From Token */}
+              <View style={styles.tokenSection}>
+                <Text style={styles.sectionLabel}>From</Text>
+                <TouchableOpacity 
+                  style={styles.tokenSelector}
+                  onPress={() => {
+                    setSelectingTokenType('from');
+                    setIsTokenSelectorVisible(true);
+                  }}>
+                  <Image source={{ uri: fromToken.icon || 'https://example.com/default-token.png' }} style={styles.tokenIcon} />
+                  <Text style={styles.tokenSymbol}>{fromToken.symbol}</Text>
+                  <Ionicons name="chevron-down" size={20} color="#FFFFFF" />
+                </TouchableOpacity>
+                <TextInput
+                  style={styles.amountInput}
+                  value={fromAmount}
+                  onChangeText={setFromAmount}
+                  placeholder="0.00"
+                  placeholderTextColor="#8E8E8E"
+                  keyboardType="decimal-pad"
+                />
+              </View>
 
-          {/* Swap Button */}
-          <TouchableOpacity style={styles.swapButton} onPress={() => {
-            const temp = fromToken;
-            setFromToken(toToken);
-            setToToken(temp);
-          }}>
-            <Ionicons name="swap-vertical" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-
-          {/* To Token */}
-          <View style={styles.tokenSection}>
-            <Text style={styles.sectionLabel}>To</Text>
-            <TouchableOpacity 
-              style={styles.tokenSelector}
-              onPress={() => {
-                setSelectingTokenType('to');
-                setIsTokenSelectorVisible(true);
+              {/* Swap Button */}
+              <TouchableOpacity style={styles.swapButton} onPress={() => {
+                const temp = fromToken;
+                setFromToken(toToken);
+                setToToken(temp);
               }}>
-              <Image source={{ uri: toToken.icon || 'https://example.com/default-token.png' }} style={styles.tokenIcon} />
-              <Text style={styles.tokenSymbol}>{toToken.symbol}</Text>
-              <Ionicons name="chevron-down" size={20} color="#FFFFFF" />
-            </TouchableOpacity>
-            <TextInput
-              style={styles.amountInput}
-              value={toAmount}
-              onChangeText={setToAmount}
-              placeholder="0.00"
-              placeholderTextColor="#8E8E8E"
-              keyboardType="decimal-pad"
-              editable={false}
-            />
-          </View>
+                <Ionicons name="swap-vertical" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
 
-          {/* Exchange Rate */}
-          {exchangeRate > 0 && (
-            <View style={styles.rateContainer}>
-              <Text style={styles.rateText}>
-                1 {fromToken.symbol} = {exchangeRate} {toToken.symbol}
-              </Text>
+              {/* To Token */}
+              <View style={styles.tokenSection}>
+                <Text style={styles.sectionLabel}>To</Text>
+                <TouchableOpacity 
+                  style={styles.tokenSelector}
+                  onPress={() => {
+                    setSelectingTokenType('to');
+                    setIsTokenSelectorVisible(true);
+                  }}>
+                  <Image source={{ uri: toToken.icon || 'https://example.com/default-token.png' }} style={styles.tokenIcon} />
+                  <Text style={styles.tokenSymbol}>{toToken.symbol}</Text>
+                  <Ionicons name="chevron-down" size={20} color="#FFFFFF" />
+                </TouchableOpacity>
+                <TextInput
+                  style={styles.amountInput}
+                  value={toAmount}
+                  onChangeText={setToAmount}
+                  placeholder="0.00"
+                  placeholderTextColor="#8E8E8E"
+                  keyboardType="decimal-pad"
+                  editable={false}
+                />
+              </View>
+
+              {/* Exchange Rate */}
+              {exchangeRate > 0 && (
+                <View style={styles.rateContainer}>
+                  <Text style={styles.rateText}>
+                    1 {fromToken.symbol} = {exchangeRate} {toToken.symbol}
+                  </Text>
+                </View>
+              )}
+
+              {/* Swap Action Button */}
+              <TouchableOpacity 
+                style={[styles.actionButton, (!fromAmount || isQuoteLoading) && styles.actionButtonDisabled]}
+                onPress={handleSwap}
+                disabled={!fromAmount || isQuoteLoading}
+              >
+                <Text style={styles.actionButtonText}>
+                  {isQuoteLoading ? 'Calculating...' : 'Swap'}
+                </Text>
+              </TouchableOpacity>
             </View>
-          )}
-
-          {/* Swap Action Button */}
-          <TouchableOpacity 
-            style={[styles.actionButton, (!fromAmount || isQuoteLoading) && styles.actionButtonDisabled]}
-            onPress={handleSwap}
-            disabled={!fromAmount || isQuoteLoading}
-          >
-            <Text style={styles.actionButtonText}>
-              {isQuoteLoading ? 'Calculating...' : 'Swap'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-        {/* Recommended Tokens Section */}
-        <View style={styles.recommendedSection}>
-          <Text style={styles.recommendedTitle}>推荐代币</Text>
-          <FlatList
-            data={recommendedTokens}
-            renderItem={renderRecommendedToken}
-            keyExtractor={item => item.address}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.recommendedList}
-          />
-        </View>
+            {/* Recommended Tokens Section */}
+            <View style={styles.recommendedSection}>
+              <Text style={styles.recommendedTitle}>推荐代币</Text>
+              <FlatList
+                data={recommendedTokens}
+                renderItem={renderRecommendedToken}
+                keyExtractor={item => item.address}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.recommendedList}
+              />
+            </View>
+          </>
+        )}
       </ScrollView>
 
     </View>
@@ -400,5 +425,11 @@ const styles = StyleSheet.create({
   recommendedTokenChange: {
     fontSize: 12,
     fontWeight: '500'
-  }
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 200,
+  },
 })
