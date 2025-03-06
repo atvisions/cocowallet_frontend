@@ -689,6 +689,59 @@ export const api = {
       return { status: 'success', data: { tokens: [] } }; // 返回空数组而不是抛出错误
     }
   },
+
+  async getTokenDetail(deviceId, walletId, symbol, tokenAddress) {
+    try {
+      const response = await instance.get(
+        `/solana/wallets/${walletId}/tokens/${symbol}/${tokenAddress}/detail`,
+        {
+          params: { device_id: deviceId }
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('获取代币详情失败:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * 获取代币K线数据
+   * @param {string} deviceId - 设备ID
+   * @param {string} walletId - 钱包ID
+   * @param {string} tokenAddress - 代币地址
+   * @param {Object} params - 查询参数
+   * @param {string} params.timeframe - 时间周期 (1h/4h/1d/1w)
+   * @param {string} [params.from_date] - 开始日期 (YYYY-MM-DD)
+   * @param {string} [params.to_date] - 结束日期 (YYYY-MM-DD)
+   * @returns {Promise<Object>} K线数据
+   */
+  async getTokenOHLCV(deviceId, walletId, tokenAddress, params) {
+    try {
+      const queryParams = new URLSearchParams({
+        device_id: deviceId,
+        timeframe: params.timeframe
+      });
+
+      if (params.from_date) {
+        queryParams.append('from_date', params.from_date);
+      }
+      if (params.to_date) {
+        queryParams.append('to_date', params.to_date);
+      }
+
+      const response = await instance.get(
+        `/solana/wallets/${walletId}/tokens/${tokenAddress}/ohlcv/?${queryParams.toString()}`
+      );
+
+      return response.data;
+    } catch (error) {
+      return {
+        status: 'error',
+        data: { ohlcv: [] }
+      };
+    }
+  },
 };
 
 export const setPaymentPassword = async (deviceId, password) => {

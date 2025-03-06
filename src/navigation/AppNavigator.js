@@ -22,6 +22,8 @@ import CreateWallet from '../screens/wallet/CreateWallet';
 import TokenListScreen from '../screens/wallet/TokenListScreen';
 import CustomSplash from '../screens/CustomSplash';
 import PrivateKeyDisplay from '../screens/wallet/PrivateKeyDisplay';
+import TokenDetailScreen from '../screens/TokenDetailScreen';
+
 const Stack = createStackNavigator();
 
 const AppNavigator = () => {
@@ -76,6 +78,7 @@ const AppNavigator = () => {
       <Stack.Screen name="PaymentPassword" component={PaymentPasswordScreen} />
       <Stack.Screen name="CreateWallet" component={CreateWallet} />
       <Stack.Screen name="TokenListScreen" component={TokenListScreen} />
+      <Stack.Screen name="TokenDetail" component={TokenDetailScreen} />
     </Stack.Navigator>
   );
 };

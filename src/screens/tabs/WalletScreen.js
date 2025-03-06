@@ -351,7 +351,19 @@ const WalletScreen = ({ navigation }) => {
     const isPositiveChange = priceChange.startsWith('+');
 
     return (
-      <View style={styles.tokenItem}>
+      <TouchableOpacity 
+        style={styles.tokenItem}
+        onPress={async () => {
+          const deviceId = await DeviceManager.getDeviceId();
+          navigation.navigate('TokenDetail', {
+            walletId: selectedWallet?.id,
+            deviceId,
+            tokenAddress: item.address,
+            symbol: item.symbol,
+            chain: selectedWallet?.chain
+          });
+        }}
+      >
         <Image 
           source={item.logo ? { uri: item.logo } : require('../../../assets/default-token.png')} 
           style={styles.tokenLogo}
@@ -375,7 +387,7 @@ const WalletScreen = ({ navigation }) => {
             </Text>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
