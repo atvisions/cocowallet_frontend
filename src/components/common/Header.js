@@ -5,7 +5,6 @@ import {
   Text,
   TouchableOpacity,
   Platform,
-  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,7 +14,6 @@ export default function Header({ title, onBack, rightComponent }) {
   
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="light-content" backgroundColor="#171C32" />
       <View style={styles.content}>
         {onBack && (
           <TouchableOpacity 

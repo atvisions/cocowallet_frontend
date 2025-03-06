@@ -145,59 +145,71 @@ function CustomTabBar({ state, descriptors, navigation }) {
 }
 
 const TabScreens = () => {
+  // 添加一个共享的状态栏组件
+  const StatusBarComponent = () => (
+    <StatusBar 
+      barStyle="light-content" 
+      backgroundColor="transparent" 
+      translucent 
+    />
+  );
+
   return (
-    <Tab.Navigator
-      tabBar={props => <CustomTabBar {...props} />}
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: '#171C32',
-          borderTopWidth: 0,
-          elevation: 0,
-          shadowOpacity: 0,
-        },
-      }}
-    >
-      <Tab.Screen 
-        name="Wallet" 
-        component={WalletScreen || FallbackScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <Ionicons 
-              name={focused ? "wallet" : "wallet-outline"} 
-              size={24} 
-              color={focused ? "#1FC595" : "#8E8E8E"} 
-            />
-          ),
+    <View style={{ flex: 1, backgroundColor: '#171C32' }}>
+      <StatusBarComponent />
+      <Tab.Navigator
+        tabBar={props => <CustomTabBar {...props} />}
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: {
+            backgroundColor: '#171C32',
+            borderTopWidth: 0,
+            elevation: 0,
+            shadowOpacity: 0,
+          },
         }}
-      />
-      <Tab.Screen 
-        name="Swap" 
-        component={SwapScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <Ionicons 
-              name={focused ? "swap-horizontal" : "swap-horizontal-outline"} 
-              size={24} 
-              color={focused ? "#1FC595" : "#8E8E8E"} 
-            />
-          ),
-        }}
-      />
-      <Tab.Screen 
-        name="Settings" 
-        component={SettingsScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <Ionicons 
-              name={focused ? "settings" : "settings-outline"} 
-              size={24} 
-              color={focused ? "#1FC595" : "#8E8E8E"} 
-            />
-          ),
-        }}
-      />
-    </Tab.Navigator>
+      >
+        <Tab.Screen 
+          name="Wallet" 
+          component={WalletScreen}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <Ionicons 
+                name={focused ? "wallet" : "wallet-outline"} 
+                size={24} 
+                color={focused ? "#1FC595" : "#8E8E8E"} 
+              />
+            ),
+          }}
+        />
+        <Tab.Screen 
+          name="Swap" 
+          component={SwapScreen}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <Ionicons 
+                name={focused ? "swap-horizontal" : "swap-horizontal-outline"} 
+                size={24} 
+                color={focused ? "#1FC595" : "#8E8E8E"} 
+              />
+            ),
+          }}
+        />
+        <Tab.Screen 
+          name="Settings" 
+          component={SettingsScreen}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <Ionicons 
+                name={focused ? "settings" : "settings-outline"} 
+                size={24} 
+                color={focused ? "#1FC595" : "#8E8E8E"} 
+              />
+            ),
+          }}
+        />
+      </Tab.Navigator>
+    </View>
   );
 };
 

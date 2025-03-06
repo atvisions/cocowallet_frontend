@@ -34,6 +34,9 @@ const WalletScreen = ({ navigation }) => {
   const [error, setError] = useState(null);
   const insets = useSafeAreaInsets();
   const [scrollOffset, setScrollOffset] = useState(0);
+  const [backgroundGradient, setBackgroundGradient] = useState(
+    'rgba(31, 197, 149, 0.08)'  // 默认绿色
+  );
 
   useWalletNavigation(navigation);
 
@@ -78,18 +81,20 @@ const WalletScreen = ({ navigation }) => {
 
   useFocusEffect(
     React.useCallback(() => {
-      console.log('WalletScreen focused');
-      setTransparentStatusBar();
-      return () => {};
+      StatusBar.setBarStyle('light-content');
+      StatusBar.setBackgroundColor('transparent');
+      StatusBar.setTranslucent(true);
     }, [])
   );
 
-  const setTransparentStatusBar = () => {
-    console.log('Setting transparent status bar');
-    StatusBar.setBarStyle('light-content');
-    StatusBar.setBackgroundColor('transparent');
-    StatusBar.setTranslucent(true);
-  };
+  useEffect(() => {
+    if (change24h !== null) {
+      const color = change24h >= 0 
+        ? 'rgba(31, 197, 149, 0.08)'
+        : 'rgba(255, 75, 85, 0.08)';
+      console.log('背景色:', color);  // 简化日志输出
+    }
+  }, [change24h]);
 
   const loadInitialData = async () => {
     try {
@@ -126,26 +131,15 @@ const WalletScreen = ({ navigation }) => {
       setTotalBalance('0.00');
     } finally {
       setIsLoading(false);
-      setTransparentStatusBar();  // 加载完成后再次设置状态栏
     }
   };
 
   const loadTokens = async (showLoading = true) => {
-    console.log('Loading tokens...');
-    if (!selectedWallet?.id) return;
-    
     try {
-      if (showLoading) {
-        setIsLoading(true);
-        setTransparentStatusBar();  // 加载开始时设置状态栏
-      }
-      setError(null);
-
       const deviceId = await DeviceManager.getDeviceId();
-      console.log('[WalletScreen] Loading tokens:', {
-        deviceId,
+      console.log('开始请求代币数据:', {
+        chain: selectedWallet.chain,
         walletId: selectedWallet.id,
-        chain: selectedWallet.chain
       });
 
       const response = await api.getWalletTokens(
@@ -153,8 +147,6 @@ const WalletScreen = ({ navigation }) => {
         selectedWallet.id,
         selectedWallet.chain
       );
-
-      console.log('[WalletScreen] Token response:', response);
 
       if (response?.status === 'success' && response.data?.data) {
         const { tokens, total_value_usd } = response.data.data;
@@ -181,27 +173,21 @@ const WalletScreen = ({ navigation }) => {
         const totalChange24h = totalCurrentValue > 0 ? 
           ((totalCurrentValue - total24hAgoValue) / total24hAgoValue) * 100 : 0;
         
-        console.log('Portfolio 24h change:', {
-          totalCurrentValue,
-          total24hAgoValue,
-          totalChange24h
-        });
+        console.log('涨跌幅:', totalChange24h);  // 简化日志输出
+        setChange24h(totalChange24h);
         
         setTokens(visibleTokens);
         setTotalBalance(total_value_usd || '0.00');
-        setChange24h(totalChange24h);
       } else {
         console.error('Invalid token response:', response);
         setError('Failed to load tokens');
       }
     } catch (error) {
-      console.error('Failed to load tokens:', error);
+      console.error('API 请求失败:', error);
       setError('Failed to load tokens');
     } finally {
-      console.log('Finished loading tokens');
       setIsLoading(false);
       setIsRefreshing(false);
-      setTransparentStatusBar();  // 加载完成后再次设置状态栏
     }
   };
 
@@ -535,10 +521,8 @@ const WalletScreen = ({ navigation }) => {
     <View style={styles.container}>
       <LinearGradient
         colors={[
-          change24h >= 0 
-            ? 'rgba(31, 197, 149, 0.08)'  // 绿色
-            : 'rgba(255, 75, 85, 0.08)',   // 红色
-          '#171C32'                        // 底色
+          backgroundGradient,  // 使用状态变量
+          '#171C32'
         ]}
         style={styles.backgroundGradient}
         start={{ x: 0, y: 0 }}
@@ -720,7 +704,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 16,
-    paddingTop: 6,  // 从 16 改为 6，整体向上移动 10
+    paddingTop: 0,  // 从 16 改为 6，整体向上移动 10
   },
   balanceCard: {
     marginBottom: 24,
