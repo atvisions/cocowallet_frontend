@@ -11,6 +11,7 @@ export const WalletProvider = ({ children }) => {
   const [selectedChain, setSelectedChain] = useState(null);
   const [tokens, setTokens] = useState([]);
   const [tokensData, setTokensData] = useState(new Map());
+  const [backgroundGradient, setBackgroundGradient] = useState('rgba(31, 197, 149, 0.08)');
   const lastUpdateTime = useRef(new Map());
 
   useEffect(() => {
@@ -108,6 +109,14 @@ export const WalletProvider = ({ children }) => {
     };
   }, [tokensData]);
 
+  // 更新背景渐变色的函数
+  const updateBackgroundGradient = useCallback((priceChange24h) => {
+    const color = priceChange24h >= 0
+      ? 'rgba(31, 197, 149, 0.08)'  // 绿色
+      : 'rgba(255, 75, 85, 0.08)';   // 红色
+    setBackgroundGradient(color);
+  }, []);
+
   const value = {
     wallets,
     selectedWallet,
@@ -122,7 +131,9 @@ export const WalletProvider = ({ children }) => {
     setTokens,
     tokensData,
     updateTokensCache,
-    getTokensCache
+    getTokensCache,
+    backgroundGradient,
+    updateBackgroundGradient
   };
 
   return (

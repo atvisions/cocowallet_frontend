@@ -25,7 +25,7 @@ import { CommonActions, useFocusEffect } from '@react-navigation/native';
 import { useWalletNavigation } from '../../hooks/useWalletNavigation';
 
 const WalletScreen = ({ navigation }) => {
-  const { selectedWallet, tokens, setTokens, setWallets, setSelectedWallet, getTokensCache, updateTokensCache } = useWallet();
+  const { selectedWallet, tokens, setTokens, setWallets, setSelectedWallet, getTokensCache, updateTokensCache, backgroundGradient, updateBackgroundGradient } = useWallet();
   const [wallets, setWalletsState] = useState([]);
   const [totalBalance, setTotalBalance] = useState('0.00');
   const [isLoading, setIsLoading] = useState(true);
@@ -34,9 +34,6 @@ const WalletScreen = ({ navigation }) => {
   const [error, setError] = useState(null);
   const insets = useSafeAreaInsets();
   const [scrollOffset, setScrollOffset] = useState(0);
-  const [backgroundGradient, setBackgroundGradient] = useState(
-    'rgba(31, 197, 149, 0.08)'  // 默认绿色
-  );
   const [screenKey, setScreenKey] = useState(0);
   const currentRequestRef = useRef(null);
   const currentWalletIdRef = useRef(null);  // 用来跟踪当前钱包ID
@@ -113,6 +110,16 @@ const WalletScreen = ({ navigation }) => {
       console.log('背景色:', color);  // 简化日志输出
     }
   }, [change24h]);
+
+  useEffect(() => {
+    if (tokens && tokens.length > 0) {
+      // 使用第一个代币的价格变化来更新背景色
+      const mainToken = tokens[0];
+      if (mainToken && mainToken.price_change_24h !== undefined) {
+        updateBackgroundGradient(mainToken.price_change_24h);
+      }
+    }
+  }, [tokens, updateBackgroundGradient]);
 
   const loadInitialData = async () => {
     try {
@@ -528,7 +535,10 @@ const WalletScreen = ({ navigation }) => {
 
   const renderAssetsSection = () => (
     <View style={styles.assetsSection}>
-      <View style={styles.tokenListContainer}>
+      <View style={[
+        styles.tokenListContainer,
+        { backgroundColor: change24h >= 0 ? '#1B2C41' : '#2C2941' }
+      ]}>
         {isLoading ? (
           renderTokenSkeleton()
         ) : (
@@ -541,6 +551,13 @@ const WalletScreen = ({ navigation }) => {
           />
         )}
       </View>
+      <TouchableOpacity 
+        style={styles.tokenManageButton}
+        onPress={handleTokenManagementPress}
+      >
+        <Ionicons name="apps-outline" size={20} color="#8E8E8E" style={styles.tokenManageIcon} />
+        <Text style={styles.tokenManageText}>Token Manage</Text>
+      </TouchableOpacity>
     </View>
   );
 
@@ -664,10 +681,7 @@ const WalletScreen = ({ navigation }) => {
   return (
     <View key={screenKey} style={styles.container}>
       <LinearGradient
-        colors={[
-          backgroundGradient,
-          '#171C32'
-        ]}
+        colors={[backgroundGradient, '#171C32']}
         style={styles.backgroundGradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 0.6 }}
@@ -692,12 +706,6 @@ const WalletScreen = ({ navigation }) => {
           </TouchableOpacity>
 
           <View style={styles.headerButtons}>
-            <TouchableOpacity 
-              style={styles.headerButton}
-              onPress={() => navigation.navigate('TokenManagement')}
-            >
-              <Ionicons name="apps-outline" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
             <TouchableOpacity 
               style={styles.headerButton}
               onPress={() => navigation.navigate('QRScanner')}
@@ -956,10 +964,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   tokenListContainer: {
-    backgroundColor: '#1B2C41',
     borderRadius: 24,
     padding: 8,
-    marginHorizontal: 0,  // 移除水平边距
+    marginHorizontal: 0,
   },
   tokenItem: {
     flexDirection: 'row',
@@ -1078,6 +1085,21 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+  },
+  tokenManageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    marginTop: 12,
+  },
+  tokenManageIcon: {
+    marginRight: 8,
+  },
+  tokenManageText: {
+    color: '#8E8E8E',
+    fontSize: 16,
+    fontWeight: '500',
   },
 });
 
