@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { DeviceManager } from '../utils/device';
+import { logger } from '../utils/logger';
 
 // 确保 BASE_URL 是正确的
 const BASE_URL = 'http://192.168.3.16:8000/api/v1';
@@ -895,38 +896,95 @@ export const api = {
 
   async executeSolanaSwap(deviceId, walletId, params) {
     try {
+      // 确保所有必要的参数都存在
+      if (!deviceId) {
+        throw new Error('缺少设备ID');
+      }
+      
+      if (!walletId) {
+        throw new Error('缺少钱包ID');
+      }
+      
+      if (!params.from_token) {
+        throw new Error('缺少源代币地址');
+      }
+      
+      if (!params.to_token) {
+        throw new Error('缺少目标代币地址');
+      }
+      
+      if (!params.amount) {
+        throw new Error('缺少兑换金额');
+      }
+      
+      if (!params.quote_id) {
+        throw new Error('缺少报价ID');
+      }
+      
+      if (!params.payment_password) {
+        throw new Error('缺少支付密码');
+      }
+      
+      // 构建请求参数
+      const requestData = {
+        device_id: deviceId,
+        quote_id: params.quote_id,
+        from_token: params.from_token,
+        to_token: params.to_token,
+        amount: params.amount,
+        payment_password: params.payment_password,
+        slippage: params.slippage || '0.5'
+      };
+      
+      console.log('执行兑换交易请求:', {
+        url: `/solana/wallets/${walletId}/swap/execute/`,
+        params: {
+          ...requestData,
+          payment_password: '******'
+        }
+      });
+      
+      // 发送请求
       const response = await instance.post(
         `/solana/wallets/${walletId}/swap/execute/`,
-        {
-          device_id: deviceId,
-          quote_id: params.quote_id,
-          from_token: params.from_token,
-          to_token: params.to_token,
-          amount: params.amount,
-          payment_password: params.payment_password,
-          slippage: params.slippage
-        }
+        requestData
       );
+      
+      console.log('兑换交易响应:', response.data);
       return response.data;
     } catch (error) {
       console.error('执行兑换交易失败:', error);
+      if (error.response) {
+        console.error('错误响应数据:', error.response.data);
+      }
       throw error;
     }
   },
 
   async getSolanaSwapStatus(deviceId, walletId, signature) {
     try {
+      logger.info('查询交易状态:', {
+        deviceId,
+        walletId,
+        signature
+      });
+      
       const response = await instance.get(
-        `/solana/wallets/${walletId}/swap/status/${signature}/`,
+        `/solana/wallets/${walletId}/swap/status/${signature}`,
         {
           params: {
             device_id: deviceId
           }
         }
       );
+      
+      logger.info('交易状态响应:', response.data);
       return response.data;
     } catch (error) {
-      console.error('获取交易状态失败:', error);
+      logger.error('获取交易状态失败:', error);
+      if (error.response) {
+        logger.error('错误响应数据:', error.response.data);
+      }
       throw error;
     }
   },

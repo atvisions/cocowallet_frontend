@@ -1,3 +1,5 @@
+import BigNumber from 'bignumber.js';
+
 /**
  * 格式化地址显示
  * @param {string} address - 完整地址
@@ -19,23 +21,24 @@ export const formatTokenAmount = (amount, decimals) => {
   if (!amount || !decimals) return '0';
   
   try {
-    // 将字符串转换为数字
-    const value = Number(amount) / Math.pow(10, decimals);
+    // 使用 BigNumber 处理精度问题
+    const value = new BigNumber(amount).dividedBy(new BigNumber(10).pow(decimals));
     
     // 如果金额为0，直接返回'0'
-    if (value === 0) return '0';
+    if (value.isZero()) return '0';
     
     // 如果金额小于 0.000001，使用科学计数法
-    if (value < 0.000001 && value > 0) {
+    if (value.isLessThan(0.000001) && !value.isZero()) {
       return value.toExponential(6);
     }
     
     // 否则使用标准格式，最多显示 6 位小数
-    return new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 6,
-      useGrouping: true
-    }).format(value).replace(/\.?0+$/, ''); // 移除末尾的零和小数点
+    return value.toFormat(6, {
+      groupSeparator: ',',
+      decimalSeparator: '.',
+      groupSize: 3,
+      secondaryGroupSize: 0
+    }).replace(/\.?0+$/, ''); // 移除末尾的零和小数点
   } catch (error) {
     console.error('格式化代币金额错误:', error);
     return '0';

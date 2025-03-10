@@ -118,63 +118,42 @@ export default function PaymentPasswordScreen({ route, navigation }) {
         });
       } else if (route.params?.purpose === 'swap') {
         const { swapData } = route.params;
-        try {
-          const swapResponse = await api.executeSolanaSwap(swapData.deviceId, swapData.walletId, {
-            quote_id: swapData.quote_id,
-            from_token: swapData.from_token,
-            to_token: swapData.to_token,
-            amount: swapData.amount,
-            payment_password: password,
-            slippage: swapData.slippage
-          });
+        
+        console.log('Swap Data received:', swapData);
+        
+        // 解析 quote 数据
+        const quoteData = JSON.parse(swapData.quote_id);
+        
+        const transactionLoadingParams = {
+          transactionType: 'swap',
+          fromToken: {
+            address: swapData.from_token,
+            token_address: swapData.from_token
+          },
+          toToken: {
+            address: swapData.to_token,
+            token_address: swapData.to_token
+          },
+          amount: quoteData.inAmount,
+          quote: swapData.quote_id,
+          slippage: swapData.slippage,
+          deviceId: swapData.deviceId,
+          walletId: swapData.walletId,
+          fromSymbol: swapData.fromSymbol,
+          toSymbol: swapData.toSymbol,
+          fromAmount: quoteData.inAmount,
+          toAmount: quoteData.outAmount,
+          payment_password: password,
+          onConfirmed: route.params?.onSwapSuccess
+        };
 
-          if (swapResponse.status === 'success') {
-            // 监控交易状态
-            const signature = swapResponse.data.signature;
-            const statusResponse = await api.getSolanaSwapStatus(swapData.deviceId, swapData.walletId, signature);
-            
-            // Navigate to transaction result page
-            navigation.navigate('TransactionResult', {
-              status: statusResponse.status === 'success' ? 'success' : 'failed',
-              type: 'swap',
-              data: {
-                signature: signature,
-                fromAmount: swapResponse.data.amount_in,
-                fromSymbol: swapData.fromSymbol,
-                toAmount: swapResponse.data.amount_out,
-                toSymbol: swapData.toSymbol,
-                timestamp: new Date().getTime()
-              },
-              onClose: () => {
-                navigation.navigate('Tabs', { screen: 'Swap' });
-                if (route.params?.onSwapSuccess) {
-                  route.params.onSwapSuccess();
-                }
-              },
-              onViewHistory: () => {
-                navigation.navigate('Tabs', {
-                  screen: 'History',
-                  params: { initialTab: 'swap' }
-                });
-              }
-            });
-          } else {
-            navigation.navigate('TransactionResult', {
-              status: 'failed',
-              type: 'swap',
-              error: swapResponse.message || 'Swap failed',
-              onClose: () => navigation.navigate('Tabs', { screen: 'Swap' })
-            });
-          }
-        } catch (error) {
-          console.error('Swap execution failed:', error);
-          navigation.navigate('TransactionResult', {
-            status: 'failed',
-            type: 'swap',
-            error: error.message || 'Swap failed',
-            onClose: () => navigation.navigate('Tabs', { screen: 'Swap' })
-          });
-        }
+        console.log('Transaction Loading Params:', {
+          ...transactionLoadingParams,
+          payment_password: '******' // 隐藏密码
+        });
+        
+        // 导航到交易加载页面
+        navigation.navigate('TransactionLoading', transactionLoadingParams);
       } else {
         // 默认行为
         navigation.goBack();
