@@ -742,6 +742,194 @@ export const api = {
       };
     }
   },
+
+  // Solana Swap 相关接口
+  async getSolanaSwapTokens(deviceId, walletId) {
+    try {
+      const response = await instance.get(
+        `/solana/wallets/${walletId}/swap/tokens`,
+        {
+          params: {
+            device_id: deviceId
+          }
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('获取Swap代币列表失败:', error);
+      throw error;
+    }
+  },
+
+  async getSolanaTokenPrices(deviceId, walletId, tokenAddresses) {
+    try {
+      const response = await instance.get(
+        `/solana/wallets/${walletId}/swap/prices`,
+        {
+          params: {
+            device_id: deviceId,
+            token_addresses: Array.isArray(tokenAddresses) ? tokenAddresses.join(',') : tokenAddresses
+          }
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('获取代币价格失败:', error);
+      return {
+        status: 'error',
+        data: { prices: {} }
+      };
+    }
+  },
+
+  async getSolanaSwapQuote(deviceId, walletId, params) {
+    try {
+      if (!deviceId || !walletId || !params.from_token || !params.to_token || !params.amount) {
+        throw {
+          status: 'error',
+          code: 'MISSING_PARAMS',
+          message: '缺少必要参数',
+          details: { deviceId, walletId, params }
+        };
+      }
+
+      console.log('获取兑换报价 - 请求参数:', {
+        deviceId,
+        walletId,
+        params,
+        url: `/solana/wallets/${walletId}/swap/quote`
+      });
+      
+      const response = await instance.get(
+        `/solana/wallets/${walletId}/swap/quote`,
+        {
+          params: {
+            device_id: deviceId,
+            from_token: params.from_token,
+            to_token: params.to_token,
+            amount: params.amount,
+            slippage: params.slippage || '0.5'
+          }
+        }
+      );
+
+      console.log('获取兑换报价 - 原始响应:', response.data);
+      
+      if (response.data.status === 'success') {
+        const { data } = response.data;
+        return {
+          status: 'success',
+          data: {
+            ...data,
+            estimated_amount: data.to_token.amount,
+            rate: (Number(data.to_token.amount) / Number(data.from_token.amount)).toString()
+          }
+        };
+      } else {
+        console.error('获取兑换报价 - API 返回错误:', response.data);
+        throw response.data;
+      }
+    } catch (error) {
+      console.error('获取兑换报价 - 捕获到错误:', {
+        error,
+        errorResponse: error.response?.data,
+        errorStatus: error.response?.status,
+        errorMessage: error.message
+      });
+      
+      // 如果是网络错误或服务器错误，返回更友好的错误信息
+      if (error.response?.status === 404) {
+        throw {
+          status: 'error',
+          code: 'API_NOT_FOUND',
+          message: '兑换服务暂时不可用，请稍后再试'
+        };
+      } else if (error.response?.status >= 500) {
+        throw {
+          status: 'error',
+          code: 'SERVER_ERROR',
+          message: '服务器暂时无法处理请求，请稍后再试'
+        };
+      }
+      
+      throw error?.response?.data || error;
+    }
+  },
+
+  async estimateSolanaSwapFees(deviceId, walletId, params) {
+    try {
+      if (!deviceId || !walletId || !params.from_token || !params.to_token || !params.amount) {
+        throw {
+          status: 'error',
+          code: 'MISSING_PARAMS',
+          message: '缺少必要参数',
+          details: { deviceId, walletId, params }
+        };
+      }
+
+      console.log('估算费用参数:', {
+        deviceId,
+        walletId,
+        params
+      });
+
+      const response = await instance.get(
+        `/solana/wallets/${walletId}/swap/estimate_fees`,
+        {
+          params: {
+            device_id: deviceId,
+            from_token: params.from_token,
+            to_token: params.to_token,
+            amount: params.amount
+          }
+        }
+      );
+
+      console.log('估算费用响应:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('估算交易费用失败:', error);
+      throw error?.response?.data || error;
+    }
+  },
+
+  async executeSolanaSwap(deviceId, walletId, params) {
+    try {
+      const response = await instance.post(
+        `/solana/wallets/${walletId}/swap/execute/`,
+        {
+          device_id: deviceId,
+          quote_id: params.quote_id,
+          from_token: params.from_token,
+          to_token: params.to_token,
+          amount: params.amount,
+          payment_password: params.payment_password,
+          slippage: params.slippage
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('执行兑换交易失败:', error);
+      throw error;
+    }
+  },
+
+  async getSolanaSwapStatus(deviceId, walletId, signature) {
+    try {
+      const response = await instance.get(
+        `/solana/wallets/${walletId}/swap/status/${signature}/`,
+        {
+          params: {
+            device_id: deviceId
+          }
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('获取交易状态失败:', error);
+      throw error;
+    }
+  },
 };
 
 export const setPaymentPassword = async (deviceId, password) => {

@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="NONE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="ebc7c7f2-dd6e-490d-bda1-714e052361fb" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/assert/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/async_hooks/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/buffer/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/child_process/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/cluster/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/console/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/constants/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/crypto/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/dgram/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/diagnostics_channel/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/dns/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/domain/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/events/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/fs/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/fs/promises/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/http/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/http2/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/https/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/inspector/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/module/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/net/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/os/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/path/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/perf_hooks/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/process/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/punycode/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/querystring/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/readline/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/repl/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/stream/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/string_decoder/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/timers/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/tls/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/trace_events/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/tty/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/url/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/util/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/v8/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/vm/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/wasi/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/worker_threads/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/externals/zlib/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/polyfill.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/polyfill.native.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/shims/react-native-web/dist/cjs/exports/AppRegistry/AppContainer.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/shims/react-native-web/dist/cjs/exports/BackHandler/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/shims/react-native-web/dist/exports/AppRegistry/AppContainer.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.expo/metro/shims/react-native-web/dist/exports/BackHandler/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/App.js" beforeDir="false" afterPath="$PROJECT_DIR$/App.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/app/src/main/AndroidManifest.xml" beforeDir="false" afterPath="$PROJECT_DIR$/android/app/src/main/AndroidManifest.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/app/src/main/res/values/styles.xml" beforeDir="false" afterPath="$PROJECT_DIR$/android/app/src/main/res/values/styles.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app.json" beforeDir="false" afterPath="$PROJECT_DIR$/app.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/babel.config.js" beforeDir="false" afterPath="$PROJECT_DIR$/babel.config.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/navigation/AppNavigator.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/navigation/AppNavigator.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/screens/tabs/SettingsScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/screens/tabs/SettingsScreen.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/screens/tabs/SwapScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/screens/tabs/SwapScreen.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/screens/tabs/WalletScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/screens/tabs/WalletScreen.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/screens/wallet/SendScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/screens/wallet/SendScreen.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/screens/wallet/TokenListScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/screens/wallet/TokenListScreen.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/services/api.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/api.js" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ClangdSettings">
+    <option name="formatViaClangd" value="false" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 1
+}]]></component>
+  <component name="ProjectId" id="2tzsHFBugc7p7ZOuZzTTNudqbvm" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "cf.first.check.clang-format": "false",
+    "cidr.known.project.marker": "true",
+    "git-widget-placeholder": "main",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "/Users/liuzhao/Documents/Projects/cocowallet/frontend",
+    "settings.editor.selected.configurable": "AndroidSdkUpdater"
+  }
+}]]></component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="ebc7c7f2-dd6e-490d-bda1-714e052361fb" name="Changes" comment="" />
+      <created>1741366152034</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1741366152034</updated>
+    </task>
+    <servers />
+  </component>
+</project>

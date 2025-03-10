@@ -10,6 +10,39 @@ export const formatAddress = (address) => {
 };
 
 /**
+ * 格式化代币金额显示
+ * @param {string|number} amount - 金额（已乘以精度的值）
+ * @param {number} decimals - 代币精度
+ * @returns {string} - 格式化后的金额
+ */
+export const formatTokenAmount = (amount, decimals) => {
+  if (!amount || !decimals) return '0';
+  
+  try {
+    // 将字符串转换为数字
+    const value = Number(amount) / Math.pow(10, decimals);
+    
+    // 如果金额为0，直接返回'0'
+    if (value === 0) return '0';
+    
+    // 如果金额小于 0.000001，使用科学计数法
+    if (value < 0.000001 && value > 0) {
+      return value.toExponential(6);
+    }
+    
+    // 否则使用标准格式，最多显示 6 位小数
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 6,
+      useGrouping: true
+    }).format(value).replace(/\.?0+$/, ''); // 移除末尾的零和小数点
+  } catch (error) {
+    console.error('格式化代币金额错误:', error);
+    return '0';
+  }
+};
+
+/**
  * 格式化金额显示
  * @param {string|number} amount - 金额
  * @param {number} decimals - 小数位数

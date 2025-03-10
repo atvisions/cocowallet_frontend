@@ -274,7 +274,7 @@ const WalletScreen = ({ navigation }) => {
 
   const handleRefresh = () => {
     setIsRefreshing(true);
-    loadTokens(false).finally(() => {
+    loadTokens(true).finally(() => {
       setIsRefreshing(false);
     });
   };

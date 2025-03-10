@@ -23,6 +23,10 @@ import TokenListScreen from '../screens/wallet/TokenListScreen';
 import CustomSplash from '../screens/CustomSplash';
 import PrivateKeyDisplay from '../screens/wallet/PrivateKeyDisplay';
 import TokenDetailScreen from '../screens/TokenDetailScreen';
+import TokenSelectScreen from '../screens/swap/TokenSelectScreen';
+import TransactionLoading from '../screens/swap/TransactionLoading';
+import SwapSuccess from '../screens/swap/SwapSuccess';
+import SwapFailed from '../screens/swap/SwapFailed';
 
 const Stack = createStackNavigator();
 
@@ -79,6 +83,10 @@ const AppNavigator = () => {
       <Stack.Screen name="CreateWallet" component={CreateWallet} />
       <Stack.Screen name="TokenListScreen" component={TokenListScreen} />
       <Stack.Screen name="TokenDetail" component={TokenDetailScreen} />
+      <Stack.Screen name="TokenSelect" component={TokenSelectScreen} />
+      <Stack.Screen name="TransactionLoading" component={TransactionLoading} />
+      <Stack.Screen name="SwapSuccess" component={SwapSuccess} />
+      <Stack.Screen name="SwapFailed" component={SwapFailed} />
     </Stack.Navigator>
   );
 };

@@ -1,0 +1,20 @@
+{
+  "name": "vision-camera-code-scanner",
+  "version": "0.2.0",
+  "summary": "VisionCamera Frame Processor Plugin to read barcodes using MLKit Vision Barcode Scanning",
+  "homepage": "https://github.com/rodgomesc/vision-camera-code-scanner#readme",
+  "license": "MIT",
+  "authors": "Rodrigo gomes <rodgomesc@gmail.com> (https://github.com/rodgomesc)",
+  "platforms": {
+    "ios": "11.0"
+  },
+  "source": {
+    "git": "https://github.com/rodgomesc/vision-camera-code-scanner.git",
+    "tag": "0.2.0"
+  },
+  "source_files": "ios/**/*.{h,m,mm,swift}",
+  "dependencies": {
+    "React-Core": [],
+    "GoogleMLKit/BarcodeScanning": []
+  }
+}
