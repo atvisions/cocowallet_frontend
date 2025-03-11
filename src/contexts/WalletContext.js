@@ -21,40 +21,64 @@ export const WalletProvider = ({ children }) => {
   const loadWallets = async () => {
     try {
       const deviceId = await DeviceManager.getDeviceId();
+      console.log('【钱包上下文】当前设备 ID:', deviceId);
+      
       const response = await api.getWallets(deviceId);
+      console.log('【钱包上下文】获取到的钱包列表:', response.map(w => ({
+        id: w.id,
+        chain: w.chain,
+        device_id: w.device_id,
+        address: w.address
+      })));
+      
       setWallets(response);
 
       // 从AsyncStorage中获取上次选择的钱包ID
       const savedWalletId = await AsyncStorage.getItem('selectedWalletId');
-      console.log('加载保存的钱包ID:', savedWalletId);
+      console.log('【钱包上下文】加载保存的钱包ID:', savedWalletId);
 
       if (savedWalletId && response.length > 0) {
         // 将savedWalletId转换为数字类型再进行比较
         const savedWalletIdNumber = parseInt(savedWalletId, 10);
-        console.log('解析保存的钱包ID:', savedWalletIdNumber);
+        console.log('【钱包上下文】解析保存的钱包ID:', savedWalletIdNumber);
 
         // 在钱包列表中查找保存的钱包
         const savedWallet = response.find(wallet => wallet.id === savedWalletIdNumber);
-        console.log('找到保存的钱包:', savedWallet?.id);
+        console.log('【钱包上下文】找到保存的钱包:', savedWallet ? {
+          id: savedWallet.id,
+          chain: savedWallet.chain,
+          device_id: savedWallet.device_id,
+          address: savedWallet.address
+        } : '未找到');
 
         if (savedWallet) {
-          console.log('设置之前选择的钱包:', savedWallet.id);
+          console.log('【钱包上下文】设置之前选择的钱包:', savedWallet.id);
           setSelectedWallet(savedWallet);
         } else {
           // 如果找不到保存的钱包，则选择第一个钱包
-          console.log('未找到保存的钱包，选择第一个钱包:', response[0].id);
+          console.log('【钱包上下文】未找到保存的钱包，选择第一个钱包:', {
+            id: response[0].id,
+            chain: response[0].chain,
+            device_id: response[0].device_id,
+            address: response[0].address
+          });
           setSelectedWallet(response[0]);
           // 更新存储的钱包ID
           await AsyncStorage.setItem('selectedWalletId', String(response[0].id));
         }
       } else if (response.length > 0) {
-        console.log('没有保存的钱包ID，选择第一个钱包:', response[0].id);
+        console.log('【钱包上下文】没有保存的钱包ID，选择第一个钱包:', {
+          id: response[0].id,
+          chain: response[0].chain,
+          device_id: response[0].device_id,
+          address: response[0].address
+        });
         setSelectedWallet(response[0]);
         // 更新存储的钱包ID
         await AsyncStorage.setItem('selectedWalletId', String(response[0].id));
       }
     } catch (error) {
-      console.error('加载钱包失败:', error);
+      console.error('【钱包上下文】加载钱包失败:', error);
     }
   };
 

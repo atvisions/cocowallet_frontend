@@ -7,6 +7,7 @@ import {
   Platform,
   Animated,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
@@ -27,6 +28,7 @@ export default function PaymentPasswordScreen({ route, navigation }) {
   const { updateSelectedWallet, checkAndUpdateWallets } = useWallet();
   const [isProcessing, setIsProcessing] = useState(false);
   const [deviceId, setDeviceId] = useState(null);
+  const [processingStatus, setProcessingStatus] = useState('');
 
   useEffect(() => {
     console.log('Password length:', password.length);
@@ -72,31 +74,74 @@ export default function PaymentPasswordScreen({ route, navigation }) {
     setPassword(prev => prev.slice(0, -1));
   };
 
+  const checkTransactionStatus = async (walletId, signature, maxAttempts = 20) => {
+    let attempts = 0;
+    
+    // 创建轮询函数
+    const pollStatus = async () => {
+      try {
+        console.log(`正在查询交易状态，第 ${attempts + 1} 次尝试`);
+        const statusResponse = await api.getSolanaSwapStatus(walletId, signature);
+        
+        console.log('交易状态响应:', statusResponse);
+        
+        if (statusResponse.status === 'success') {
+          if (statusResponse.data.status === 'confirmed') {
+            return { success: true, data: statusResponse.data };
+          } else if (statusResponse.data.status === 'failed') {
+            return { success: false, error: '交易失败' };
+          }
+        }
+        
+        // 如果还在处理中，继续轮询
+        attempts++;
+        if (attempts >= maxAttempts) {
+          return { success: false, error: '交易状态查询超时' };
+        }
+        
+        // 等待2秒后再次查询
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        return await pollStatus();
+        
+      } catch (error) {
+        console.error('查询交易状态出错:', error);
+        return { success: false, error: error.message };
+      }
+    };
+
+    return await pollStatus();
+  };
+
   const handlePasswordComplete = async (password) => {
     try {
-      setIsProcessing(true);
-      console.log('Submitting password verification...', { deviceId });
+      setProcessingStatus('正在提交交易...');
+      
+      // 验证密码
       const response = await api.verifyPaymentPassword(deviceId, password);
-      console.log('Password verification response:', response);
 
       if (response.status === 'success') {
-        console.log('Password verification successful, executing callback...');
-        handlePasswordVerified(password);
+        // 密码验证成功，更新状态提示
+        setProcessingStatus('正在提交交易...');
+        
+        // 执行交易
+        await handlePasswordVerified(password);
       } else {
-        Alert.alert('Error', response.message || 'Password verification failed');
+        // 密码错误，清空输入
         setPassword('');
+        setError('密码错误，请重试');
       }
     } catch (error) {
-      console.error('Password verification error:', error);
-      Alert.alert('Error', 'Failed to verify password');
+      console.error('处理错误:', error);
       setPassword('');
+      setError(error.message || '操作失败，请重试');
     } finally {
       setIsProcessing(false);
+      setProcessingStatus('');
     }
   };
 
   const handlePasswordVerified = async (password) => {
-    console.log('Password verification successful, executing callback...');
+    console.log('密码验证成功，准备执行回调...');
     
     try {
       if (route.params?.onSuccess) {
@@ -106,7 +151,7 @@ export default function PaymentPasswordScreen({ route, navigation }) {
         const { transactionData, nextScreen } = route.params;
         
         // 确保 transactionData 包含所有必要的信息
-        console.log('Transaction data:', {
+        console.log('交易数据:', {
           ...transactionData,
           token_address: transactionData.token_address
         });
@@ -119,47 +164,97 @@ export default function PaymentPasswordScreen({ route, navigation }) {
       } else if (route.params?.purpose === 'swap') {
         const { swapData } = route.params;
         
-        console.log('Swap Data received:', swapData);
+        console.log('收到的 Swap 数据:', {
+          ...swapData,
+          quote_id: swapData.quote_id ? '(长度:' + swapData.quote_id.length + ')' : null,
+          payment_password: '******'
+        });
         
         // 解析 quote 数据
         const quoteData = JSON.parse(swapData.quote_id);
         
-        const transactionLoadingParams = {
-          transactionType: 'swap',
-          fromToken: {
-            address: swapData.from_token,
-            token_address: swapData.from_token
-          },
-          toToken: {
-            address: swapData.to_token,
-            token_address: swapData.to_token
-          },
-          amount: quoteData.inAmount,
-          quote: swapData.quote_id,
-          slippage: swapData.slippage,
-          deviceId: swapData.deviceId,
-          walletId: swapData.walletId,
-          fromSymbol: swapData.fromSymbol,
-          toSymbol: swapData.toSymbol,
-          fromAmount: quoteData.inAmount,
-          toAmount: quoteData.outAmount,
+        console.log('交易金额检查:', {
+          显示金额: swapData.amount,
+          链上金额: quoteData.inAmount,
+          // 不要再次转换精度
+        });
+
+        // 确保 walletId 是数字类型
+        const numericWalletId = Number(swapData.walletId);
+        if (isNaN(numericWalletId)) {
+          console.error(`无效的钱包ID: ${swapData.walletId}, 类型: ${typeof swapData.walletId}`);
+          throw new Error(`无效的钱包ID: ${swapData.walletId}`);
+        }
+
+        // 构建交易参数 - 直接使用 quote 中的 inAmount
+        const transactionParams = {
+          device_id: swapData.deviceId,
+          from_token: swapData.from_token,
+          to_token: swapData.to_token,
+          amount: quoteData.inAmount,  // 直接使用 quote 中的链上金额
+          quote_id: swapData.quote_id,
           payment_password: password,
-          onConfirmed: route.params?.onSwapSuccess
+          slippage: swapData.slippage
         };
 
-        console.log('Transaction Loading Params:', {
-          ...transactionLoadingParams,
-          payment_password: '******' // 隐藏密码
-        });
-        
-        // 导航到交易加载页面
-        navigation.navigate('TransactionLoading', transactionLoadingParams);
+        console.log('提交交易参数:', transactionParams);
+
+        // 如果有回调函数，先执行回调
+        if (route.params?.onSwapSuccess) {
+          await route.params.onSwapSuccess(transactionParams);
+        }
+
+        // 执行交易并获取交易签名
+        try {
+          console.log('开始执行Solana代币兑换交易...');
+          setProcessingStatus('正在提交交易...');
+          const response = await api.executeSolanaSwap(numericWalletId, transactionParams);
+          
+          if (response.status === 'success' && response.data?.signature?.result) {
+            navigation.navigate('MainStack', {
+              screen: 'Tabs',
+              params: {
+                screen: 'Swap',
+                params: {
+                  pendingTransaction: true,
+                  signature: response.data.signature.result
+                }
+              }
+            });
+          } else {
+            navigation.navigate('MainStack', {
+              screen: 'Tabs',
+              params: {
+                screen: 'Swap',
+                params: {
+                  showMessage: true,
+                  messageType: 'error',
+                  messageText: response.message || '交易提交失败'
+                }
+              }
+            });
+          }
+        } catch (error) {
+          console.error('执行交易出错:', error);
+          
+          navigation.navigate('MainStack', {
+            screen: 'Tabs',
+            params: {
+              screen: 'Swap',
+              params: {
+                showMessage: true,
+                messageType: 'error',
+                messageText: error.message || '交易执行失败'
+              }
+            }
+          });
+        }
       } else {
         // 默认行为
         navigation.goBack();
       }
     } catch (error) {
-      console.error('Error in password verification callback:', error);
+      console.error('密码验证回调执行错误:', error);
       Alert.alert('错误', error?.message || '交易失败，请重试');
     }
   };
@@ -205,6 +300,19 @@ export default function PaymentPasswordScreen({ route, navigation }) {
     );
   };
 
+  // 渲染加载状态
+  const renderProcessingOverlay = () => {
+    if (!isProcessing) return null;
+
+    return (
+      <View style={styles.processingOverlay}>
+        <ActivityIndicator size="large" color="#1FC595" />
+        <Text style={styles.processingText}>{processingStatus}</Text>
+        <Text style={styles.processingSubText}>请勿关闭应用</Text>
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <Header 
@@ -238,6 +346,8 @@ export default function PaymentPasswordScreen({ route, navigation }) {
 
         {renderNumberPad()}
       </View>
+
+      {renderProcessingOverlay()}
     </View>
   );
 }
@@ -311,4 +421,26 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontWeight: '500',
   },
+  processingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  processingText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    marginTop: 16,
+    fontWeight: '500',
+  },
+  processingSubText: {
+    color: '#8E8E8E',
+    fontSize: 14,
+    marginTop: 8,
+  }
 });

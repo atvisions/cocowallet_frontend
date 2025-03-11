@@ -9,17 +9,20 @@ const WALLET_CREATED_KEY = '@coco_wallet_created';
 export const DeviceManager = {
   async getDeviceId() {
     try {
-      let deviceId = await AsyncStorage.getItem(DEVICE_ID_KEY);
+      const deviceId = await AsyncStorage.getItem('deviceId');
+      console.log('【设备管理】从 AsyncStorage 获取的设备 ID:', deviceId);
       
-      if (!deviceId) {
-        deviceId = this.generateDeviceId();
-        await AsyncStorage.setItem(DEVICE_ID_KEY, deviceId);
+      if (deviceId) {
+        return deviceId;
       }
       
-      return deviceId;
+      const newDeviceId = `android_${uuidv4()}`;
+      console.log('【设备管理】生成新的设备 ID:', newDeviceId);
+      await AsyncStorage.setItem('deviceId', newDeviceId);
+      return newDeviceId;
     } catch (error) {
-      console.error('Error getting device ID:', error);
-      throw error;
+      console.error('【设备管理】获取设备 ID 失败:', error);
+      return 'android_default';
     }
   },
 

@@ -13,7 +13,8 @@ import {
   Alert,
   ScrollView,
   KeyboardAvoidingView,
-  RefreshControl
+  RefreshControl,
+  Modal
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../services/api';
@@ -128,7 +129,7 @@ const QuoteDetails = ({ quote, fees, toToken, fromToken, isQuoteLoading, calcula
   );
 };
 
-const SwapScreen = ({ navigation }) => {
+const SwapScreen = ({ navigation, route }) => {
   const { selectedWallet, backgroundGradient } = useWallet();
   const [userTokens, setUserTokens] = useState([]);
   const [swapTokens, setSwapTokens] = useState([]);
@@ -147,6 +148,14 @@ const SwapScreen = ({ navigation }) => {
   const [priceChange, setPriceChange] = useState(0);
   const insets = useSafeAreaInsets();
   const [isScreenFocused, setIsScreenFocused] = useState(false);
+  const [transactionStatus, setTransactionStatus] = useState('idle'); // idle, loading, success, failed
+  const [transactionError, setTransactionError] = useState('');
+  const [currentTransaction, setCurrentTransaction] = useState(null);
+  const [statusCheckInterval, setStatusCheckInterval] = useState(null);
+  const [showMessage, setShowMessage] = useState(false);
+  const [messageType, setMessageType] = useState('');
+  const [messageText, setMessageText] = useState('');
+  const [loadingText, setLoadingText] = useState('');
 
   // 使用 useFocusEffect 监听页面焦点
   useFocusEffect(
@@ -176,6 +185,116 @@ const SwapScreen = ({ navigation }) => {
       };
     }, [])
   );
+
+  // 处理从支付密码页面返回的交易信息
+  useEffect(() => {
+    // 检查路由参数，支持嵌套参数结构
+    const params = route?.params;
+    const transactionInfo = params?.transactionInfo;
+    const checkTransactionStatus = params?.checkTransactionStatus;
+    
+    if (transactionInfo && checkTransactionStatus) {
+      console.log('收到交易信息，开始监控状态:', transactionInfo);
+      
+      // 设置当前交易信息
+      setCurrentTransaction(transactionInfo);
+      setTransactionStatus('loading');
+      
+      // 从交易信息中提取签名
+      const signature = transactionInfo.signature?.result || transactionInfo.signature;
+      if (!signature) {
+        console.error('交易信息中没有有效的签名:', transactionInfo);
+        setTransactionStatus('failed');
+        setTransactionError('无效的交易签名');
+        return;
+      }
+      
+      // 开始检查交易状态
+      startTransactionStatusCheck(signature);
+      
+      // 清除路由参数，防止重复处理
+      navigation.setParams({ transactionInfo: null, checkTransactionStatus: false });
+    }
+  }, [route?.params]);
+
+  // 开始检查交易状态
+  const startTransactionStatusCheck = (signature) => {
+    if (statusCheckInterval) {
+      clearInterval(statusCheckInterval);
+    }
+    
+    // 立即检查一次
+    checkTransactionStatus(signature);
+    
+    // 设置定时检查，每3秒检查一次
+    const intervalId = setInterval(() => {
+      checkTransactionStatus(signature);
+    }, 3000);
+    
+    setStatusCheckInterval(intervalId);
+  };
+
+  // 停止检查交易状态
+  const stopTransactionStatusCheck = () => {
+    if (statusCheckInterval) {
+      clearInterval(statusCheckInterval);
+      setStatusCheckInterval(null);
+    }
+  };
+
+  // 检查交易状态
+  const checkTransactionStatus = async (signature) => {
+    if (!signature || !selectedWallet) return;
+    
+    try {
+      // 如果签名是对象，提取实际的签名字符串
+      const actualSignature = typeof signature === 'object' ? signature.result : signature;
+      if (!actualSignature) {
+        console.error('无效的签名格式:', signature);
+        setTransactionStatus('failed');
+        setTransactionError('无效的交易签名格式');
+        stopTransactionStatusCheck();
+        return;
+      }
+      
+      const deviceId = await DeviceManager.getDeviceId();
+      console.log('检查交易状态:', {
+        deviceId,
+        walletId: selectedWallet.id,
+        signature: actualSignature
+      });
+      
+      const response = await api.getSolanaSwapStatus(deviceId, selectedWallet.id, actualSignature);
+      console.log('交易状态响应:', response);
+      
+      if (response.status === 'success') {
+        // 交易成功
+        setTransactionStatus('success');
+        stopTransactionStatusCheck();
+        
+        // 刷新余额
+        loadUserTokens();
+      } else if (response.status === 'pending') {
+        // 交易仍在处理中，继续检查
+        console.log('交易处理中，继续检查...');
+      } else {
+        // 交易失败
+        setTransactionStatus('failed');
+        setTransactionError(response.message || '交易失败');
+        stopTransactionStatusCheck();
+      }
+    } catch (error) {
+      console.error('检查交易状态出错:', error);
+      // 不要立即停止检查，可能是网络问题
+    }
+  };
+
+  // 组件卸载时清理
+  useEffect(() => {
+    return () => {
+      stopTransactionStatusCheck();
+    };
+  }, []);
 
   // 创建一个 ref 来存储定时器
   const quoteRefreshInterval = React.useRef(null);
@@ -270,13 +389,81 @@ const SwapScreen = ({ navigation }) => {
       // 直接使用 price_impact
       const impact = parseFloat(quote.price_impact || 0);
       console.log('价格影响数据:', {
-        原始price_impact: quote.price_impact,
-        解析后的impact: impact,
-        当前priceChange: impact
+        '原始price_impact': quote.price_impact,
+        '当前priceChange': impact,
+        '解析后的impact': impact
       });
       setPriceChange(impact); // 直接使用 impact，不再取反
     }
   }, [quote]);
+
+  useEffect(() => {
+    if (route.params?.showMessage) {
+      setShowMessage(true);
+      setMessageType(route.params.messageType);
+      setMessageText(route.params.messageText);
+      
+      // 3秒后自动隐藏消息
+      const timer = setTimeout(() => {
+        setShowMessage(false);
+      }, 3000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [route.params]);
+
+  useEffect(() => {
+    if (route.params?.pendingTransaction && route.params?.signature) {
+      // 设置按钮为加载状态
+      setIsLoading(true);
+      setLoadingText('交易确认中');
+      pollTransactionStatus(route.params.signature);
+    }
+  }, [route.params]);
+
+  const pollTransactionStatus = async (signature) => {
+    let attempts = 0;
+    const maxAttempts = 30;
+
+    const checkStatus = async () => {
+      if (attempts >= maxAttempts) {
+        setIsLoading(false);
+        showTransactionMessage('error', '交易处理超时');
+        return;
+      }
+
+      try {
+        const response = await api.getSolanaSwapStatus(selectedWallet.id, signature);
+        
+        if (response.data?.status === 'confirmed') {
+          // 交易成功：停止加载状态，显示成功消息
+          setIsLoading(false);
+          showTransactionMessage('success', '交易成功');
+          await loadUserTokens();
+          return;
+        }
+
+        attempts++;
+        setTimeout(checkStatus, 2000);
+      } catch (error) {
+        // 查询失败：停止加载状态，显示提示
+        setIsLoading(false);
+        showTransactionMessage('error', '交易状态查询失败');
+      }
+    };
+
+    await checkStatus();
+  };
+
+  const showTransactionMessage = (type, text) => {
+    setMessageType(type);
+    setMessageText(text);
+    setShowMessage(true);
+    
+    setTimeout(() => {
+      setShowMessage(false);
+    }, 3000);
+  };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -301,14 +488,21 @@ const SwapScreen = ({ navigation }) => {
       );
       
       if (response?.status === 'success' && response.data?.data?.tokens) {
-        const visibleTokens = response.data.data.tokens.filter(token => token.is_visible);
+        const visibleTokens = response.data.data.tokens
+          .filter(token => token.is_visible)
+          .map(token => ({
+            ...token,
+            token_address: token.token_address || token.address // 确保统一使用 token_address
+          }));
+
         console.log('用户代币列表加载成功:', {
           总数量: response.data.data.tokens.length,
           可见代币: visibleTokens.length,
           代币列表: visibleTokens.map(t => ({
             符号: t.symbol,
             余额: t.balance_formatted,
-            精度: t.decimals
+            精度: t.decimals,
+            地址: t.token_address
           }))
         });
         
@@ -434,7 +628,13 @@ const SwapScreen = ({ navigation }) => {
 
   const getQuoteAndFees = async () => {
     try {
-      if (!fromToken || !toToken || !amount) {
+      // 先验证必要参数
+      if (!fromToken?.token_address || !toToken?.token_address || !amount) {
+        console.log('缺少必要参数:', {
+          fromTokenAddress: fromToken?.token_address,
+          toTokenAddress: toToken?.token_address,
+          amount: amount
+        });
         setQuote(null);
         setFees(null);
         return;
@@ -443,29 +643,42 @@ const SwapScreen = ({ navigation }) => {
       setIsQuoteLoading(true);
       const deviceId = await DeviceManager.getDeviceId();
       
-      // 移除千分位分隔符，直接使用原始金额
+      // 移除千分位分隔符
       const cleanAmount = amount.replace(/,/g, '');
       
-      console.log('发送兑换请求:', {
-        fromToken: fromToken.symbol,
-        fromTokenAddress: fromToken.token_address || fromToken.address,
-        fromTokenDecimals: fromToken.decimals,
-        toToken: toToken.symbol,
-        toTokenAddress: toToken.token_address || toToken.address,
-        toTokenDecimals: toToken.decimals,
-        amount: cleanAmount
+      // 转换金额为链上精度
+      const amountBN = new BigNumber(cleanAmount);
+      const decimals = fromToken.decimals || 0;
+      const rawAmount = amountBN.multipliedBy(new BigNumber(10).pow(decimals)).toFixed(0);
+      
+      console.log('金额转换:', {
+        输入金额: cleanAmount,
+        代币精度: decimals,
+        链上金额: rawAmount
       });
 
-      // 使用 api.getSolanaSwapQuote 方法
-      const response = await api.getSolanaSwapQuote(
-        deviceId,
+      // 构建API请求参数
+      const params = {
+        device_id: deviceId,
+        from_token: fromToken.token_address,
+        to_token: toToken.token_address,
+        amount: rawAmount,
+        slippage: slippage
+      };
+      
+      console.log('发送兑换报价请求:', {
+        设备ID: params.device_id,
+        支付代币: params.from_token,
+        接收代币: params.to_token,
+        原始数量: cleanAmount,
+        链上数量: params.amount,
+        滑点: params.slippage
+      });
+
+      // 修正：使用 api.getSwapQuote 方法
+      const response = await api.getSwapQuote(
         selectedWallet.id,
-        {
-          from_token: fromToken.token_address || fromToken.address,
-          to_token: toToken.token_address || toToken.address,
-          amount: cleanAmount,
-          slippage: slippage
-        }
+        params
       );
 
       if (response?.status === 'success') {
@@ -598,26 +811,41 @@ const SwapScreen = ({ navigation }) => {
 
     try {
       setIsLoading(true);
+      setTransactionStatus('loading');
+      setTransactionError('');
       
       // 获取设备ID
       const deviceId = await DeviceManager.getDeviceId();
       
+      // 转换金额为链上精度
+      const amountBN = new BigNumber(amount);
+      const decimals = fromToken.decimals || 0;
+      const rawAmount = amountBN.multipliedBy(new BigNumber(10).pow(decimals)).toFixed(0);
+      
+      // 构建API请求参数
       const swapParams = {
         device_id: deviceId,
-        payment_password: paymentPassword,
-        quote_id: quote.quote_id,
-        from_token: fromToken.address,
-        to_token: toToken.address,
-        amount: amount,
-        slippage: slippage
+        from_token: fromToken.token_address,
+        to_token: toToken.token_address,
+        amount: rawAmount,
+        slippage: slippage,
+        quote_id: JSON.stringify(quote),
+        payment_password: paymentPassword
       };
 
-      logger.debug('执行兑换交易:', swapParams);
+      console.log('执行兑换交易:', {
+        ...swapParams,
+        payment_password: '******',  // 隐藏密码
+        原始金额: amount,
+        链上金额: rawAmount,
+        quote_id: '(长度:' + JSON.stringify(quote).length + ')'  // 打印 quote 长度而不是内容
+      });
       
+      // 直接传递 walletId 作为路径参数
       const response = await api.executeSolanaSwap(selectedWallet.id, swapParams);
       
       if (response?.status === 'success') {
-        Alert.alert('成功', '交易已提交');
+        setTransactionStatus('success');
         // 重置状态
         setAmount('');
         setQuote(null);
@@ -625,11 +853,13 @@ const SwapScreen = ({ navigation }) => {
         // 刷新余额
         loadUserTokens();
       } else {
-        throw new Error(response?.message || '交易失败');
+        setTransactionStatus('failed');
+        setTransactionError(response?.message || '交易失败');
       }
     } catch (error) {
       logger.error('执行兑换出错:', error);
-      Alert.alert('错误', error.message || '交易执行失败，请重试');
+      setTransactionStatus('failed');
+      setTransactionError(error.message || '交易执行失败，请重试');
     } finally {
       setIsLoading(false);
     }
@@ -651,21 +881,35 @@ const SwapScreen = ({ navigation }) => {
           return;
         }
 
+        // 确保代币地址存在
+        const tokenAddress = selectedToken.token_address || selectedToken.address;
+        if (!tokenAddress) {
+          console.error('选择的代币缺少地址:', selectedToken);
+          Alert.alert('提示', '代币数据不完整，请选择其他代币');
+          return;
+        }
+
+        // 创建规范化的代币对象
+        const normalizedToken = {
+          ...selectedToken,
+          token_address: tokenAddress
+        };
+
         console.log('选择代币:', {
           类型: type,
-          代币: selectedToken.symbol,
-          精度: selectedToken.decimals,
-          地址: selectedToken.token_address || selectedToken.address
+          代币: normalizedToken.symbol,
+          精度: normalizedToken.decimals,
+          地址: normalizedToken.token_address
         });
 
         if (type === 'from') {
-          setFromToken(selectedToken);
+          setFromToken(normalizedToken);
           // 清空金额，因为代币改变后精度可能不同
           setAmount('');
           setQuote(null);
           setFees(null);
         } else {
-          setToToken(selectedToken);
+          setToToken(normalizedToken);
         }
       }
     });
@@ -681,13 +925,11 @@ const SwapScreen = ({ navigation }) => {
       
       if (!fromAmount || !toAmount) return '计算中...';
       
-      // 使用 BigNumber 处理精度问题
       const fromValue = new BigNumber(fromAmount).dividedBy(new BigNumber(10).pow(fromToken.decimals));
       const toValue = new BigNumber(toAmount).dividedBy(new BigNumber(10).pow(toToken.decimals));
       
       if (fromValue.isZero()) return '计算中...';
       
-      // 计算 1 个 fromToken 可以兑换多少 toToken
       const rate = toValue.dividedBy(fromValue);
       
       // 格式化显示
@@ -898,8 +1140,8 @@ const SwapScreen = ({ navigation }) => {
         deviceId,
         walletId: selectedWallet.id,
         quote_id: quote.quote_id,
-        from_token: fromToken.address,
-        to_token: toToken.address,
+        from_token: fromToken.token_address,
+        to_token: toToken.token_address,
         amount: amount,
         slippage: slippage,
         fromSymbol: fromToken.symbol,
@@ -944,7 +1186,10 @@ const SwapScreen = ({ navigation }) => {
             style={styles.swapButtonGradient}
           >
             {isLoading ? (
-              <ActivityIndicator color="#FFFFFF" />
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator color="#FFFFFF" />
+                <Text style={styles.loadingText}>{loadingText}</Text>
+              </View>
             ) : (
               <Text style={styles.swapButtonText}>
                 {isInsufficientBalance ? '余额不足' : '兑换'}
@@ -953,6 +1198,70 @@ const SwapScreen = ({ navigation }) => {
           </LinearGradient>
         </TouchableOpacity>
       </View>
+    );
+  };
+
+  const renderTransactionModal = () => {
+    return (
+      <Modal
+        visible={transactionStatus !== 'idle'}
+        transparent
+        animationType="fade"
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            {transactionStatus === 'loading' && (
+              <>
+                <ActivityIndicator size="large" color="#1FC595" />
+                <Text style={styles.modalText}>交易处理中...</Text>
+                <Text style={styles.modalSubText}>
+                  正在将 {currentTransaction?.amount} {currentTransaction?.fromSymbol} 
+                  兑换为 {currentTransaction?.toSymbol}
+                </Text>
+                <Text style={styles.modalTips}>
+                  交易确认可能需要几秒钟时间，请耐心等待
+                </Text>
+              </>
+            )}
+            {transactionStatus === 'success' && (
+              <>
+                <Ionicons name="checkmark-circle" size={50} color="#1FC595" />
+                <Text style={styles.modalTitle}>交易成功</Text>
+                <Text style={styles.modalText}>
+                  已成功将 {currentTransaction?.amount} {currentTransaction?.fromSymbol} 
+                  兑换为 {currentTransaction?.toSymbol}
+                </Text>
+                <TouchableOpacity
+                  style={styles.modalButton}
+                  onPress={() => {
+                    setTransactionStatus('idle');
+                    setCurrentTransaction(null);
+                  }}
+                >
+                  <Text style={styles.modalButtonText}>确定</Text>
+                </TouchableOpacity>
+              </>
+            )}
+            {transactionStatus === 'failed' && (
+              <>
+                <Ionicons name="close-circle" size={50} color="#FF3B30" />
+                <Text style={styles.modalTitle}>交易失败</Text>
+                <Text style={styles.modalText}>{transactionError}</Text>
+                <TouchableOpacity
+                  style={styles.modalButton}
+                  onPress={() => {
+                    setTransactionStatus('idle');
+                    setCurrentTransaction(null);
+                    setTransactionError('');
+                  }}
+                >
+                  <Text style={styles.modalButtonText}>关闭</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     );
   };
 
@@ -1065,6 +1374,17 @@ const SwapScreen = ({ navigation }) => {
         currentSlippage={slippage}
         onConfirm={handleSlippageChange}
       />
+      {renderTransactionModal()}
+
+      {/* 顶部消息提示 */}
+      {showMessage && (
+        <View style={[
+          styles.messageBar,
+          messageType === 'success' ? styles.successBar : styles.errorBar
+        ]}>
+          <Text style={styles.messageText}>{messageText}</Text>
+        </View>
+      )}
     </SafeAreaView>
   );
 };
@@ -1401,6 +1721,80 @@ const styles = StyleSheet.create({
   },
   warningText: {
     color: '#FF9500',
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    backgroundColor: '#171C32',
+    borderRadius: 16,
+    padding: 24,
+    width: '80%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  modalText: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    marginBottom: 16,
+  },
+  modalSubText: {
+    fontSize: 14,
+    color: '#8E8E8E',
+    marginBottom: 16,
+  },
+  modalTips: {
+    fontSize: 12,
+    color: '#8E8E8E',
+    marginBottom: 16,
+  },
+  modalButton: {
+    backgroundColor: '#1FC595',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  messageBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    padding: 12,
+    zIndex: 999,
+  },
+  successBar: {
+    backgroundColor: '#4CAF50',
+  },
+  errorBar: {
+    backgroundColor: '#F44336',
+  },
+  messageText: {
+    color: '#FFFFFF',
+    textAlign: 'center',
+    fontSize: 14,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    color: '#FFFFFF',
+    marginLeft: 8,
+    fontSize: 14,
   },
 });
 
