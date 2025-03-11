@@ -11,7 +11,7 @@ export const WalletProvider = ({ children }) => {
   const [selectedChain, setSelectedChain] = useState(null);
   const [tokens, setTokens] = useState([]);
   const [tokensData, setTokensData] = useState(new Map());
-  const [backgroundGradient, setBackgroundGradient] = useState('rgba(31, 197, 149, 0.08)');
+  const [backgroundGradient, setBackgroundGradient] = useState('#1B4C31');
   const lastUpdateTime = useRef(new Map());
 
   useEffect(() => {
@@ -134,11 +134,27 @@ export const WalletProvider = ({ children }) => {
   }, [tokensData]);
 
   // 更新背景渐变色的函数
-  const updateBackgroundGradient = useCallback((priceChange24h) => {
-    const color = priceChange24h >= 0
-      ? 'rgba(31, 197, 149, 0.08)'  // 绿色
-      : 'rgba(255, 75, 85, 0.08)';   // 红色
-    setBackgroundGradient(color);
+  const updateBackgroundGradient = useCallback((priceChange) => {
+    console.log('Updating background gradient based on price change:', priceChange);
+    
+    // 确保 priceChange 是数字
+    let numericPriceChange;
+    if (typeof priceChange === 'string') {
+      // 如果是字符串，移除百分号和加号，转换为数字
+      numericPriceChange = parseFloat(priceChange.replace('%', '').replace('+', ''));
+    } else {
+      numericPriceChange = priceChange;
+    }
+    
+    console.log('Numeric price change value:', numericPriceChange);
+    
+    if (!isNaN(numericPriceChange) && numericPriceChange >= 0) {
+      console.log('Setting GREEN background for positive price change');
+      setBackgroundGradient('rgba(27, 76, 49, 0.8)'); // 绿色背景 (上涨) 增加透明度
+    } else {
+      console.log('Setting PURPLE background for negative price change');
+      setBackgroundGradient('rgba(44, 41, 65, 0.8)'); // 紫色背景 (下跌) 增加透明度
+    }
   }, []);
 
   const value = {

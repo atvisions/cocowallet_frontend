@@ -116,7 +116,19 @@ const WalletScreen = ({ navigation }) => {
       // 使用第一个代币的价格变化来更新背景色
       const mainToken = tokens[0];
       if (mainToken && mainToken.price_change_24h !== undefined) {
-        updateBackgroundGradient(mainToken.price_change_24h);
+        // 确保传递数字类型的价格变化值
+        let priceChange = mainToken.price_change_24h;
+        if (typeof priceChange === 'string') {
+          priceChange = parseFloat(priceChange.replace('%', '').replace('+', ''));
+        }
+        
+        console.log('Updating background gradient from token:', {
+          token: mainToken.symbol,
+          price_change_24h: mainToken.price_change_24h,
+          numeric_value: priceChange
+        });
+        
+        updateBackgroundGradient(priceChange);
       }
     }
   }, [tokens, updateBackgroundGradient]);

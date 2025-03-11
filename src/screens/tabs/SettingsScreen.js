@@ -19,10 +19,11 @@ import { useWallet } from '../../contexts/WalletContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SettingsScreen({ navigation }) {
   const [hasPaymentPassword, setHasPaymentPassword] = useState(false);
-  const { selectedWallet, backgroundGradient } = useWallet();
+  const { selectedWallet, setSelectedWallet, wallets, backgroundGradient } = useWallet();
   const insets = useSafeAreaInsets();
 
   useFocusEffect(
@@ -79,6 +80,132 @@ export default function SettingsScreen({ navigation }) {
       });
     }
   };
+
+  // 获取背景颜色
+  const getCardBackgroundColor = () => {
+    // 根据主背景色返回适合的卡片背景色
+    if (backgroundGradient.includes('27, 76, 49') || backgroundGradient === '#1B4C31') {
+      // 绿色背景下使用半透明绿色
+      return 'rgba(27, 76, 49, 0.4)';
+    } else {
+      // 紫色背景下使用原来的紫色
+      return '#2C2941';
+    }
+  };
+
+  // 获取分割线颜色
+  const getDividerColor = () => {
+    if (backgroundGradient.includes('27, 76, 49') || backgroundGradient === '#1B4C31') {
+      // 绿色背景下使用更浅的分割线
+      return 'rgba(255, 255, 255, 0.08)';
+    } else {
+      // 紫色背景下使用原来的分割线颜色
+      return 'rgba(255, 255, 255, 0.05)';
+    }
+  };
+
+  // 获取图标颜色
+  const getIconColor = () => {
+    if (backgroundGradient.includes('27, 76, 49') || backgroundGradient === '#1B4C31') {
+      // 绿色背景下使用更亮的图标颜色
+      return '#E0F2EA';
+    } else {
+      // 紫色背景下使用原来的图标颜色
+      return '#FFFFFF';
+    }
+  };
+
+  // 处理钱包管理
+  const handleWalletManagement = () => {
+    navigation.navigate('WalletManagement');
+  };
+
+  // 处理安全设置
+  const handleSecuritySettings = () => {
+    navigation.navigate('SecuritySettings');
+  };
+
+  // 处理语言设置
+  const handleLanguageSettings = () => {
+    navigation.navigate('LanguageSettings');
+  };
+
+  // 处理通知设置
+  const handleNotificationSettings = () => {
+    navigation.navigate('NotificationSettings');
+  };
+
+  // 处理帮助与支持
+  const handleHelpSupport = () => {
+    navigation.navigate('HelpSupport');
+  };
+
+  // 处理关于我们
+  const handleAboutUs = () => {
+    navigation.navigate('AboutUs');
+  };
+
+  // 处理服务条款
+  const handleTermsOfService = () => {
+    navigation.navigate('TermsOfService');
+  };
+
+  // 处理隐私政策
+  const handlePrivacyPolicy = () => {
+    navigation.navigate('PrivacyPolicy');
+  };
+
+  // 处理退出登录
+  const handleLogout = async () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // 清除本地存储的登录状态
+              await AsyncStorage.removeItem('userToken');
+              await AsyncStorage.removeItem('selectedWallet');
+              
+              // 重置钱包状态
+              setSelectedWallet(null);
+              
+              // 导航到登录页面
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Auth' }],
+              });
+            } catch (error) {
+              console.error('Logout error:', error);
+              Alert.alert('Error', 'Failed to logout. Please try again.');
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  // 渲染设置项
+  const renderSettingItem = (icon, title, onPress, showDivider = true) => (
+    <>
+      <TouchableOpacity style={styles.settingItem} onPress={onPress}>
+        <View style={[styles.settingIconContainer, { backgroundColor: backgroundGradient.includes('27, 76, 49') ? 'rgba(27, 76, 49, 0.6)' : 'rgba(44, 41, 65, 0.8)' }]}>
+          <Ionicons name={icon} size={22} color={getIconColor()} />
+        </View>
+        <Text style={styles.settingTitle}>{title}</Text>
+        <Ionicons name="chevron-forward" size={20} color="#8E8E8E" />
+      </TouchableOpacity>
+      {showDivider && <View style={[styles.divider, { backgroundColor: getDividerColor() }]} />}
+    </>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -265,5 +392,34 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  settingsContainer: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginHorizontal: 16,
+  },
+  settingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+  },
+  settingIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  settingTitle: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  divider: {
+    height: 1,
+    marginLeft: 72,
   },
 });

@@ -18,8 +18,6 @@ const instance = axios.create({
 instance.interceptors.response.use(
   response => response,
   error => {
-    console.log('API Error Response:', error.response?.data);  // 添加日志
-    
     if (error.response) {
       // 直接返回服务器的错误响应
       return Promise.reject(error.response.data || {
@@ -55,7 +53,6 @@ const getChainPath = (chain) => {
   const chainKey = chain?.toLowerCase();
   const path = CHAIN_PATHS[chainKey];
   if (!path) {
-    console.error('Unsupported chain:', chain);
     return 'evm';  // 默认返回 evm
   }
   return path;
@@ -85,7 +82,6 @@ export const api = {
       await DeviceManager.setPaymentPasswordStatus(true);
       return response.data;
     } catch (error) {
-      console.error('Error setting password API:', error);
       throw error;
     }
   },
@@ -127,12 +123,9 @@ export const api = {
 
   async getWallets(deviceId) {
     try {
-      console.log('[API] Fetching wallets for device:', deviceId);
       const response = await instance.get(`/wallets/?device_id=${deviceId}`);
-      console.log('[API] Wallets fetched successfully');
       return response.data;
     } catch (error) {
-      console.error('[API] Failed to get wallets:', error);
       return handleApiError(error, 'Failed to get wallets');
     }
   },
@@ -188,11 +181,10 @@ export const api = {
       const response = await instance.get(`/wallets/payment_password/status/${deviceId}/`);
       return response.data?.data?.has_payment_password || false;
     } catch (error) {
-      console.error('Check payment password status error:', error);
       // 返回标准格式的错误响应
       return {
         status: 'error',
-        message: error.response?.data?.message || '网络连接错误，请检查网络状态',
+        message: error.response?.data?.message || 'Network error, please check your connection',
         hasPassword: false
       };
     }
@@ -216,13 +208,10 @@ export const api = {
 
   async getTokens(deviceId, chain, walletId) {
     try {
-      console.log(`[API] Fetching tokens for wallet ${walletId} on chain ${chain}`);
       const chainPath = getChainPath(chain);
       const response = await instance.get(`/${chainPath}/wallets/${walletId}/tokens/?device_id=${deviceId}`);
-      console.log('[API] Tokens fetched successfully');
       return response.data;
     } catch (error) {
-      console.error('[API] Failed to fetch tokens:', error);
       throw error;
     }
   },
@@ -242,7 +231,6 @@ export const api = {
       );
       return response.data;
     } catch (error) {
-      console.error('API Error - getTokenTransfers:', error);
       throw error;
     }
   },
@@ -260,7 +248,6 @@ export const api = {
       );
       return response.data;
     } catch (error) {
-      console.error('API Error - getNFTCollections:', error);
       throw error;
     }
   },
@@ -275,14 +262,6 @@ export const api = {
       } else {
         url = `/${chainPath}/nfts/${walletId}/list/?device_id=${deviceId}&collection_address=${collectionAddress}`;
       }
-      
-      console.log('Making NFT collection request:', {
-        deviceId,
-        chain,
-        walletId,
-        collectionAddress,
-        url
-      });
 
       if (chain === 'sol') {
         const response = await instance.get(url, {
@@ -296,13 +275,6 @@ export const api = {
         return response.data;
       }
     } catch (error) {
-      console.error('Error fetching NFTs:', {
-        error,
-        deviceId,
-        chain,
-        walletId,
-        collectionAddress
-      });
       throw error;
     }
   },
@@ -311,16 +283,8 @@ export const api = {
     try {
       const chainPath = getChainPath(chain);
       if (!chainPath) {
-        console.error('Invalid chain path for:', chain);
         return null;
       }
-
-      console.log('Toggle visibility request:', {
-        chainPath,
-        walletId,
-        tokenAddress,
-        deviceId
-      });
 
       const response = await instance.post(
         `/${chainPath}/wallets/${walletId}/tokens/toggle-visibility/`,
@@ -336,7 +300,6 @@ export const api = {
 
       return response.data;
     } catch (error) {
-      console.error('Toggle visibility API error:', error);
       throw error;
     }
   },
@@ -351,14 +314,11 @@ export const api = {
         }
       );
       
-      console.log('API getTokensManagement response:', response.data);
-      
       return {
         status: 'success',
         data: response.data
       };
     } catch (error) {
-      console.error('API getTokensManagement error:', error);
       throw error;
     }
   },
@@ -394,7 +354,6 @@ export const api = {
         throw new Error(response.data?.message || 'Failed to get private key');
       }
     } catch (error) {
-      console.error('Get private key with biometric error:', error);
       throw error;
     }
   },
@@ -412,7 +371,6 @@ export const api = {
         throw new Error(response.data?.message || 'Failed to enable biometric');
       }
     } catch (error) {
-      console.error('Enable biometric error:', error);
       throw error;
     }
   },
@@ -432,13 +390,6 @@ export const api = {
     try {
       const chainPath = chain.toLowerCase() === 'sol' ? 'solana' : 'evm';
       const url = `${BASE_URL}/${chainPath}/wallets/${walletId}/tokens/`;
-      
-      console.log('发送请求:', {
-        url,
-        deviceId,
-        walletId,
-        chain
-      });
 
       const response = await axios.get(url, {
         params: {
@@ -450,58 +401,31 @@ export const api = {
         signal
       });
       
-      console.log('收到响应:', {
-        status: response.status,
-        data: response.data,
-        walletId,
-        chain
-      });
-      
       return response.data;
     } catch (error) {
-      // 打印完整的错误信息
-      console.error('API 请求失败:', {
-        walletId,
-        chain,
-        deviceId,
-        error: error.message,
-        status: error.response?.status,
-        data: error.response?.data,  // 添加响应数据
-        url: error.config?.url,
-        headers: error.config?.headers,  // 添加请求头信息
-        params: error.config?.params     // 添加请求参数
-      });
       throw error;
     }
   },
 
   async importPrivateKey(deviceId, chain, privateKey, password) {
     try {
-      console.log('[API] Importing private key for chain:', chain);
       const response = await instance.post('/wallets/import_private_key/', {
         device_id: deviceId,
         chain,
         private_key: privateKey,
         payment_password: password
       });
-      console.log('[API] Private key imported successfully');
       return response.data;
     } catch (error) {
-      console.error('[API] Import private key error:', error);
       return error;
     }
   },
 
   async sendEvmTransaction(walletId, params) {
     try {
-      console.log('Sending EVM transaction:', {
-        walletId,
-        params
-      });
-      
       // 确保params中包含device_id
       if (!params.device_id) {
-        throw new Error('缺少device_id参数');
+        throw new Error('Missing device_id parameter');
       }
       
       const response = await instance.post(`/evm/wallets/${walletId}/transfer/`, {
@@ -518,19 +442,12 @@ export const api = {
       
       return response.data;
     } catch (error) {
-      console.log('API Error Response:', error.response?.data);
       throw error.response?.data || error;
     }
   },
 
   async getTransactionStatus(deviceId, txHash, walletId) {
     try {
-      console.log('Requesting transaction status:', {
-        deviceId,
-        txHash,
-        walletId
-      });
-
       const response = await instance.get(
         `/solana/wallets/${walletId}/transaction-status/`,
         {
@@ -541,19 +458,17 @@ export const api = {
         }
       );
 
-      console.log('Transaction status response:', response.data);
       return response.data;
     } catch (error) {
-      console.error('Transaction status error:', error);
       if (error.response?.status === 404) {
         return {
           status: 'pending',
-          message: '交易确认中，请稍后再试'
+          message: 'Transaction is being confirmed, please try again later'
         };
       }
       return {
         status: 'error',
-        message: '网络错误，请检查网络连接'
+        message: 'Network error, please check your connection'
       };
     }
   },
@@ -577,14 +492,13 @@ export const api = {
       } else {
         return {
           status: 'error',
-          message: response.data?.message || '获取代币详情失败'
+          message: response.data?.message || 'Failed to get token details'
         };
       }
     } catch (error) {
-      console.error('获取代币详情失败:', error);
       return {
         status: 'error',
-        message: error.response?.data?.message || '获取代币详情失败'
+        message: error.response?.data?.message || 'Failed to get token details'
       };
     }
   },
@@ -594,7 +508,6 @@ export const api = {
       const response = await this.getTokenDetails(deviceId, walletId, tokenAddress);
       return response.status === 'success' ? response.data.decimals : null;
     } catch (error) {
-      console.error('获取代币精度失败:', error);
       return null;
     }
   },
@@ -611,7 +524,6 @@ export const api = {
       );
       return response.data;
     } catch (error) {
-      console.error('Solana transaction error:', error);
       throw error;
     }
   },
@@ -628,7 +540,6 @@ export const api = {
       );
       return response.data;
     } catch (error) {
-      console.error('获取代币详情失败:', error);
       throw error;
     }
   },
@@ -636,14 +547,6 @@ export const api = {
   async getTransactionHistory(deviceId, walletId, chain, page = 1, pageSize = 20) {
     try {
       const chainPath = getChainPath(chain);
-      console.log('[API] Fetching transaction history:', {
-        chainPath,
-        walletId,
-        deviceId,
-        page,
-        pageSize
-      });
-
       const response = await instance.get(
         `/${chainPath}/wallets/${walletId}/token-transfers/`,
         {
@@ -667,14 +570,13 @@ export const api = {
       } else {
         return {
           status: 'error',
-          message: response.data?.message || '获取交易记录失败'
+          message: response.data?.message || 'Failed to get transaction history'
         };
       }
     } catch (error) {
-      console.error('[API] Transaction history error:', error);
       return {
         status: 'error',
-        message: error.response?.data?.message || '网络连接错误，请检查网络状态'
+        message: error.response?.data?.message || 'Network error, please check your connection'
       };
     }
   },
@@ -686,7 +588,6 @@ export const api = {
       );
       return response.data;
     } catch (error) {
-      console.log('API Error Response:', error.response?.data);
       return { status: 'success', data: { tokens: [] } }; // 返回空数组而不是抛出错误
     }
   },
@@ -701,7 +602,6 @@ export const api = {
       );
       return response.data;
     } catch (error) {
-      console.error('获取代币详情失败:', error);
       throw error;
     }
   },
@@ -747,11 +647,6 @@ export const api = {
   // Solana Swap 相关接口
   async getSolanaSwapTokens(walletId, deviceId) {
     try {
-      console.log('获取Swap代币列表:', {
-        钱包ID: walletId,
-        设备ID: deviceId
-      });
-
       const response = await instance.get(
         `/solana/wallets/${walletId}/swap/tokens/`,  // 添加末尾斜杠
         {
@@ -762,19 +657,12 @@ export const api = {
       );
       return response.data;
     } catch (error) {
-      console.error('获取Swap代币列表失败:', error);
       throw error;
     }
   },
 
   async getSolanaTokenPrices(walletId, deviceId, tokenAddresses) {
     try {
-      console.log('获取代币价格:', {
-        钱包ID: walletId,
-        设备ID: deviceId,
-        代币地址: tokenAddresses
-      });
-
       const response = await instance.get(
         `/solana/wallets/${walletId}/swap/prices/`,  // 添加末尾斜杠
         {
@@ -786,7 +674,6 @@ export const api = {
       );
       return response.data;
     } catch (error) {
-      console.error('获取代币价格失败:', error);
       return {
         status: 'error',
         data: { prices: {} }
@@ -796,17 +683,6 @@ export const api = {
 
   async getSwapQuote(walletId, params) {
     try {
-      console.log('获取兑换报价 - 请求参数:', {
-        url: `/solana/wallets/${walletId}/swap/quote`,
-        params: {
-          device_id: params.device_id,
-          from_token: params.from_token,
-          to_token: params.to_token,
-          amount: params.amount,
-          slippage: params.slippage
-        }
-      });
-      
       // 修改为 GET 请求，与实际接口匹配
       const response = await instance.get(
         `/solana/wallets/${walletId}/swap/quote`,
@@ -821,14 +697,8 @@ export const api = {
         }
       );
       
-      console.log('获取兑换报价 - 响应:', {
-        status: response.status,
-        data: response.data
-      });
-      
       return response.data;
     } catch (error) {
-      console.error('获取兑换报价失败:', error);
       throw error.response?.data || error;
     }
   },
@@ -847,71 +717,30 @@ export const api = {
         payment_password: params.payment_password
       };
 
-      console.log('开始执行Solana代币兑换交易...', {
-        钱包ID: numericWalletId,
-        设备ID: params.device_id,
-        输入代币: params.from_token,
-        输出代币: params.to_token,
-        金额: params.amount,
-        滑点: params.slippage
-      });
-
       const response = await instance.post(
         `/solana/wallets/${numericWalletId}/swap/execute/`,
         requestBody
       );
 
-      console.log('交易执行响应:', {
-        状态: response.data.status,
-        数据: {
-          ...response.data,
-          signature: response.data.signature ? {
-            result: response.data.signature.result,
-            完整签名: response.data.signature
-          } : null
-        }
-      });
-
-      if (response.data.status === 'success' && !response.data.signature) {
-        console.error('警告：交易响应成功但未返回签名');
-      }
-
       return response.data;
     } catch (error) {
-      console.error('执行兑换交易失败:', {
-        错误信息: error.message,
-        状态码: error.response?.status,
-        响应数据: error.response?.data,
-        请求信息: {
-          URL: error.config?.url,
-          方法: error.config?.method
-        }
-      });
       throw error.response?.data || error;
     }
   },
 
   async getSolanaSwapStatus(walletId, signature, deviceId) {
     try {
-      console.log('开始查询交易状态:', {
-        钱包ID: walletId,
-        签名: signature,
-        设备ID: deviceId
-      });
-
       if (!walletId || !signature || !deviceId) {
-        console.error('缺少必要参数:', { walletId, signature, deviceId });
-        throw new Error('缺少必要参数');
+        throw new Error('Missing required parameters');
       }
 
       const numericWalletId = Number(walletId);
       if (isNaN(numericWalletId)) {
-        throw new Error('无效的钱包ID');
+        throw new Error('Invalid wallet ID');
       }
 
       // 修改 URL 格式，确保不会有重定向
       const url = `/solana/wallets/${numericWalletId}/swap/status/${signature}`;
-      console.log('查询交易状态URL:', url);
 
       const response = await instance.get(url, {
         params: {
@@ -919,18 +748,11 @@ export const api = {
         }
       });
 
-      console.log('交易状态查询响应:', response.data);
       return response.data;
     } catch (error) {
-      console.error('查询交易状态失败:', {
-        错误信息: error.message,
-        状态码: error.response?.status,
-        响应数据: error.response?.data
-      });
-      
       return {
         status: 'error',
-        message: error.response?.data?.message || '交易状态查询失败',
+        message: error.response?.data?.message || 'Transaction status query failed',
         code: error.response?.data?.code || 'UNKNOWN_ERROR'
       };
     }
@@ -960,12 +782,6 @@ export const api = {
    */
   async getTokenPrices(deviceId, walletId, tokenAddresses) {
     try {
-      console.log('获取代币价格:', {
-        walletId,
-        deviceId,
-        tokenAddresses
-      });
-
       // 确保 tokenAddresses 是数组
       const addresses = Array.isArray(tokenAddresses) ? tokenAddresses : [tokenAddresses];
 
@@ -978,23 +794,19 @@ export const api = {
           }
         }
       );
-
-      console.log('代币价格响应:', response.data);
       
       if (response.data?.status === 'success') {
         return response.data;
       } else {
-        console.warn('获取代币价格响应格式异常:', response.data);
         return {
           status: 'error',
           data: { prices: {} }
         };
       }
     } catch (error) {
-      console.error('获取代币价格失败:', error);
       return {
         status: 'error',
-        message: error.response?.data?.message || '获取代币价格失败',
+        message: error.response?.data?.message || 'Failed to get token prices',
         data: { prices: {} }
       };
     }
@@ -1017,7 +829,6 @@ export const setPaymentPassword = async (deviceId, password) => {
         const data = await response.json();
         return data; // 确保返回的数据包含 status 和 message
     } catch (error) {
-        console.error('Error saving password:', error);
         throw new Error('Failed to save password');
     }
 };
