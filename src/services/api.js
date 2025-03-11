@@ -690,7 +690,7 @@ export const api = {
       return { status: 'success', data: { tokens: [] } }; // 返回空数组而不是抛出错误
     }
   },
-
+  
   async getTokenDetail(deviceId, walletId, symbol, tokenAddress) {
     try {
       const response = await instance.get(
@@ -745,10 +745,15 @@ export const api = {
   },
 
   // Solana Swap 相关接口
-  async getSolanaSwapTokens(deviceId, walletId) {
+  async getSolanaSwapTokens(walletId, deviceId) {
     try {
+      console.log('获取Swap代币列表:', {
+        钱包ID: walletId,
+        设备ID: deviceId
+      });
+
       const response = await instance.get(
-        `/solana/wallets/${walletId}/swap/tokens`,
+        `/solana/wallets/${walletId}/swap/tokens/`,  // 添加末尾斜杠
         {
           params: {
             device_id: deviceId
@@ -762,10 +767,16 @@ export const api = {
     }
   },
 
-  async getSolanaTokenPrices(deviceId, walletId, tokenAddresses) {
+  async getSolanaTokenPrices(walletId, deviceId, tokenAddresses) {
     try {
+      console.log('获取代币价格:', {
+        钱包ID: walletId,
+        设备ID: deviceId,
+        代币地址: tokenAddresses
+      });
+
       const response = await instance.get(
-        `/solana/wallets/${walletId}/swap/prices`,
+        `/solana/wallets/${walletId}/swap/prices/`,  // 添加末尾斜杠
         {
           params: {
             device_id: deviceId,
@@ -824,10 +835,8 @@ export const api = {
 
   async executeSolanaSwap(walletId, params) {
     try {
-      // 确保 walletId 是数字
       const numericWalletId = Number(walletId);
       
-      // 构建与后端接口完全一致的请求体
       const requestBody = {
         device_id: params.device_id,
         from_token: params.from_token,
@@ -838,13 +847,13 @@ export const api = {
         payment_password: params.payment_password
       };
 
-      console.log('执行兑换交易 - 完整请求:', {
-        url: `/solana/wallets/${numericWalletId}/swap/execute/`,
-        requestBody: {
-          ...requestBody,
-          payment_password: '******',
-          quote_id: '(长度:' + requestBody.quote_id.length + ')'
-        }
+      console.log('开始执行Solana代币兑换交易...', {
+        钱包ID: numericWalletId,
+        设备ID: params.device_id,
+        输入代币: params.from_token,
+        输出代币: params.to_token,
+        金额: params.amount,
+        滑点: params.slippage
       });
 
       const response = await instance.post(
@@ -852,33 +861,142 @@ export const api = {
         requestBody
       );
 
-      console.log('执行兑换交易 - 完整响应:', response.data);
+      console.log('交易执行响应:', {
+        状态: response.data.status,
+        数据: {
+          ...response.data,
+          signature: response.data.signature ? {
+            result: response.data.signature.result,
+            完整签名: response.data.signature
+          } : null
+        }
+      });
+
+      if (response.data.status === 'success' && !response.data.signature) {
+        console.error('警告：交易响应成功但未返回签名');
+      }
 
       return response.data;
     } catch (error) {
       console.error('执行兑换交易失败:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-        request: {
-          url: error.config?.url,
-          method: error.config?.method,
-          data: error.config?.data
+        错误信息: error.message,
+        状态码: error.response?.status,
+        响应数据: error.response?.data,
+        请求信息: {
+          URL: error.config?.url,
+          方法: error.config?.method
         }
       });
       throw error.response?.data || error;
     }
   },
 
-  async getSolanaSwapStatus(deviceId, walletId, signature) {
+  async getSolanaSwapStatus(walletId, signature, deviceId) {
     try {
-      const response = await instance.get(
-        `/solana/wallets/${walletId}/swap/status/${signature}?device_id=${deviceId}`
-      );
+      console.log('开始查询交易状态:', {
+        钱包ID: walletId,
+        签名: signature,
+        设备ID: deviceId
+      });
+
+      if (!walletId || !signature || !deviceId) {
+        console.error('缺少必要参数:', { walletId, signature, deviceId });
+        throw new Error('缺少必要参数');
+      }
+
+      const numericWalletId = Number(walletId);
+      if (isNaN(numericWalletId)) {
+        throw new Error('无效的钱包ID');
+      }
+
+      // 修改 URL 格式，确保不会有重定向
+      const url = `/solana/wallets/${numericWalletId}/swap/status/${signature}`;
+      console.log('查询交易状态URL:', url);
+
+      const response = await instance.get(url, {
+        params: {
+          device_id: deviceId
+        }
+      });
+
+      console.log('交易状态查询响应:', response.data);
       return response.data;
     } catch (error) {
-      // 不要抛出具体的错误信息
-      throw new Error('交易状态查询失败');
+      console.error('查询交易状态失败:', {
+        错误信息: error.message,
+        状态码: error.response?.status,
+        响应数据: error.response?.data
+      });
+      
+      return {
+        status: 'error',
+        message: error.response?.data?.message || '交易状态查询失败',
+        code: error.response?.data?.code || 'UNKNOWN_ERROR'
+      };
+    }
+  },
+
+  /**
+   * 获取代币市场价格
+   * @param {string} deviceId - 设备ID
+   * @param {string} walletId - 钱包ID
+   * @param {string|string[]} tokenAddresses - 单个代币地址或代币地址数组
+   * @returns {Promise<Object>} 代币价格信息，格式为：
+   * {
+   *   status: 'success',
+   *   data: {
+   *     prices: {
+   *       [tokenAddress]: {
+   *         price: number,
+   *         price_change_24h: number,
+   *         volume_24h: number,
+   *         market_cap: number,
+   *         total_supply: number,
+   *         vs_token: string
+   *       }
+   *     }
+   *   }
+   * }
+   */
+  async getTokenPrices(deviceId, walletId, tokenAddresses) {
+    try {
+      console.log('获取代币价格:', {
+        walletId,
+        deviceId,
+        tokenAddresses
+      });
+
+      // 确保 tokenAddresses 是数组
+      const addresses = Array.isArray(tokenAddresses) ? tokenAddresses : [tokenAddresses];
+
+      const response = await instance.get(
+        `/solana/wallets/${walletId}/swap/prices/`,  // 添加末尾斜杠
+        {
+          params: {
+            device_id: deviceId,
+            token_addresses: addresses.join(',')
+          }
+        }
+      );
+
+      console.log('代币价格响应:', response.data);
+      
+      if (response.data?.status === 'success') {
+        return response.data;
+      } else {
+        console.warn('获取代币价格响应格式异常:', response.data);
+        return {
+          status: 'error',
+          data: { prices: {} }
+        };
+      }
+    } catch (error) {
+      console.error('获取代币价格失败:', error);
+      return {
+        status: 'error',
+        message: error.response?.data?.message || '获取代币价格失败',
+        data: { prices: {} }
+      };
     }
   },
 };

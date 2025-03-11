@@ -144,6 +144,7 @@ export default function PaymentPasswordScreen({ route, navigation }) {
     console.log('密码验证成功，准备执行回调...');
     
     try {
+      setIsProcessing(true);
       if (route.params?.onSuccess) {
         // 直接执行回调函数，传递密码
         await route.params.onSuccess(password);
@@ -176,7 +177,6 @@ export default function PaymentPasswordScreen({ route, navigation }) {
         console.log('交易金额检查:', {
           显示金额: swapData.amount,
           链上金额: quoteData.inAmount,
-          // 不要再次转换精度
         });
 
         // 确保 walletId 是数字类型
@@ -186,18 +186,21 @@ export default function PaymentPasswordScreen({ route, navigation }) {
           throw new Error(`无效的钱包ID: ${swapData.walletId}`);
         }
 
-        // 构建交易参数 - 直接使用 quote 中的 inAmount
+        // 构建交易参数
         const transactionParams = {
           device_id: swapData.deviceId,
           from_token: swapData.from_token,
           to_token: swapData.to_token,
-          amount: quoteData.inAmount,  // 直接使用 quote 中的链上金额
+          amount: quoteData.inAmount,
           quote_id: swapData.quote_id,
           payment_password: password,
           slippage: swapData.slippage
         };
 
-        console.log('提交交易参数:', transactionParams);
+        console.log('提交交易参数:', {
+          ...transactionParams,
+          payment_password: '******'
+        });
 
         // 如果有回调函数，先执行回调
         if (route.params?.onSwapSuccess) {
@@ -208,31 +211,57 @@ export default function PaymentPasswordScreen({ route, navigation }) {
         try {
           console.log('开始执行Solana代币兑换交易...');
           setProcessingStatus('正在提交交易...');
-          const response = await api.executeSolanaSwap(numericWalletId, transactionParams);
           
-          if (response.status === 'success' && response.data?.signature?.result) {
+          // 添加重试机制
+          let retryCount = 0;
+          const maxRetries = 3;
+          let response;
+          
+          while (retryCount < maxRetries) {
+            try {
+              response = await api.executeSolanaSwap(numericWalletId, transactionParams);
+              if (response.status === 'success' && response.data?.signature) {
+                break;
+              }
+              retryCount++;
+              if (retryCount < maxRetries) {
+                setProcessingStatus(`交易提交失败，正在重试(${retryCount}/${maxRetries})...`);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+              }
+            } catch (error) {
+              console.error(`第${retryCount + 1}次尝试失败:`, error);
+              retryCount++;
+              if (retryCount < maxRetries) {
+                setProcessingStatus(`交易提交失败，正在重试(${retryCount}/${maxRetries})...`);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+              } else {
+                throw error;
+              }
+            }
+          }
+          
+          if (response?.status === 'success' && response.data?.signature) {
+            const signature = response.data.signature.result || response.data.signature;
+            console.log('交易提交成功，获取到签名:', signature);
+            
+            // 导航回 Swap 页面并传递交易信息
             navigation.navigate('MainStack', {
               screen: 'Tabs',
               params: {
                 screen: 'Swap',
                 params: {
-                  pendingTransaction: true,
-                  signature: response.data.signature.result
+                  transactionInfo: {
+                    signature: signature,
+                    fromToken: swapData.fromSymbol,
+                    toToken: swapData.toSymbol,
+                    amount: swapData.amount
+                  },
+                  checkTransactionStatus: true
                 }
               }
             });
           } else {
-            navigation.navigate('MainStack', {
-              screen: 'Tabs',
-              params: {
-                screen: 'Swap',
-                params: {
-                  showMessage: true,
-                  messageType: 'error',
-                  messageText: response.message || '交易提交失败'
-                }
-              }
-            });
+            throw new Error(response?.message || '交易提交失败');
           }
         } catch (error) {
           console.error('执行交易出错:', error);
@@ -256,6 +285,9 @@ export default function PaymentPasswordScreen({ route, navigation }) {
     } catch (error) {
       console.error('密码验证回调执行错误:', error);
       Alert.alert('错误', error?.message || '交易失败，请重试');
+    } finally {
+      setIsProcessing(false);
+      setProcessingStatus('');
     }
   };
 

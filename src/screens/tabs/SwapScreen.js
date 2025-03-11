@@ -27,6 +27,7 @@ import SlippageSettingModal from '../swap/SlippageSettingModal';
 import { formatTokenAmount } from '../../utils/format';
 import BigNumber from 'bignumber.js';
 import { logger } from '../../utils/logger';
+import axios from 'axios';
 
 const SkeletonLoader = ({ width, height, style }) => {
   return (
@@ -58,7 +59,93 @@ const debounce = (func, wait) => {
   };
 };
 
-const QuoteDetails = ({ quote, fees, toToken, fromToken, isQuoteLoading, calculateExchangeRate, formatTokenAmount, formatPriceImpact }) => {
+// 添加默认代币配置
+const DEFAULT_TOKENS = {
+  SOL: {
+    symbol: 'SOL',
+    name: 'Solana',
+    token_address: 'So11111111111111111111111111111111111111112',
+    decimals: 9,
+    logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
+    is_visible: true,
+    balance_formatted: '0',
+  },
+  USDC: {
+    symbol: 'USDC',
+    name: 'USD Coin',
+    token_address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+    decimals: 6,
+    logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png',
+    is_visible: true,
+    balance_formatted: '0',
+  }
+};
+
+const formatDisplayAmount = (amount, decimals) => {
+  try {
+    if (!amount || decimals === undefined) {
+      console.log('formatDisplayAmount: 无效的输入参数', { amount, decimals });
+      return '0';
+    }
+    
+    console.log('formatDisplayAmount: 开始处理金额', {
+      原始金额: amount,
+      代币精度: decimals,
+      金额类型: typeof amount
+    });
+
+    // 将金额转换为 BigNumber 以确保精确计算
+    const amountBN = new BigNumber(amount);
+    if (amountBN.isNaN()) {
+      console.error('formatDisplayAmount: 金额转换为BigNumber失败');
+      return '0';
+    }
+
+    const divisor = new BigNumber(10).pow(decimals);
+    const formattedAmount = amountBN.dividedBy(divisor);
+    
+    console.log('formatDisplayAmount: 金额转换过程', {
+      原始金额: amount,
+      代币精度: decimals,
+      除数: divisor.toString(),
+      转换后金额: formattedAmount.toString()
+    });
+    
+    // 根据金额大小使用不同的显示精度
+    let displayDecimals;
+    const absAmount = formattedAmount.abs();
+    
+    if (absAmount.isZero()) {
+      displayDecimals = 2;
+    } else if (absAmount.isLessThan(0.01)) {
+      displayDecimals = 6;
+    } else if (absAmount.isLessThan(1)) {
+      displayDecimals = 4;
+    } else if (absAmount.isLessThan(1000)) {
+      displayDecimals = 2;
+    } else {
+      displayDecimals = 2;
+    }
+    
+    const result = formattedAmount.toFormat(displayDecimals, {
+      groupSize: 3,
+      groupSeparator: ',',
+      decimalSeparator: '.'
+    });
+
+    console.log('formatDisplayAmount: 最终显示结果', {
+      显示精度: displayDecimals,
+      格式化结果: result
+    });
+
+    return result;
+  } catch (error) {
+    console.error('formatDisplayAmount: 格式化金额错误:', error);
+    return '0';
+  }
+};
+
+const QuoteDetails = ({ quote, fees, toToken, fromToken, isQuoteLoading, calculateExchangeRate, formatTokenAmount, formatPriceImpact, tokenPrices }) => {
   if (isQuoteLoading) {
     return (
       <View style={styles.quoteDetailsContainer}>
@@ -78,6 +165,10 @@ const QuoteDetails = ({ quote, fees, toToken, fromToken, isQuoteLoading, calcula
           <Text style={styles.quoteLabel}>网络费用</Text>
           <SkeletonLoader width={80} height={16} />
         </View>
+        <View style={styles.quoteRow}>
+          <Text style={styles.quoteLabel}>市场价格</Text>
+          <SkeletonLoader width={100} height={16} />
+        </View>
       </View>
     );
   }
@@ -86,17 +177,20 @@ const QuoteDetails = ({ quote, fees, toToken, fromToken, isQuoteLoading, calcula
     return null;
   }
 
-  // 使用已格式化的金额
   const exchangeRate = calculateExchangeRate(quote, fromToken, toToken);
   const priceImpact = quote.price_impact ? formatPriceImpact(quote.price_impact) : '0%';
-  
-  // 使用已格式化的最低获得金额
   const minimumReceived = quote.minimum_received 
-    ? formatTokenAmount(quote.minimum_received, toToken.decimals)
+    ? formatDisplayAmount(quote.minimum_received, toToken.decimals)
     : '0';
-    
-  // 判断价格影响是否过高
+  
   const isPriceImpactHigh = new BigNumber(quote.price_impact || 0).isGreaterThan(0.05);
+  
+  // 获取市场价格
+  const fromTokenPrice = tokenPrices[fromToken.token_address]?.price;
+  const toTokenPrice = tokenPrices[toToken.token_address]?.price;
+  const marketPrice = fromTokenPrice && toTokenPrice 
+    ? `$${fromTokenPrice.toFixed(2)} / $${toTokenPrice.toFixed(2)}`
+    : '获取中...';
 
   return (
     <View style={styles.quoteDetailsContainer}>
@@ -125,6 +219,10 @@ const QuoteDetails = ({ quote, fees, toToken, fromToken, isQuoteLoading, calcula
           {fees ? `${fees.amount} ${fees.token}` : '计算中...'}
         </Text>
       </View>
+      <View style={styles.quoteRow}>
+        <Text style={styles.quoteLabel}>市场价格</Text>
+        <Text style={styles.quoteValue}>{marketPrice}</Text>
+      </View>
     </View>
   );
 };
@@ -133,8 +231,8 @@ const SwapScreen = ({ navigation, route }) => {
   const { selectedWallet, backgroundGradient } = useWallet();
   const [userTokens, setUserTokens] = useState([]);
   const [swapTokens, setSwapTokens] = useState([]);
-  const [fromToken, setFromToken] = useState(null);
-  const [toToken, setToToken] = useState(null);
+  const [fromToken, setFromToken] = useState(DEFAULT_TOKENS.SOL);
+  const [toToken, setToToken] = useState(DEFAULT_TOKENS.USDC);
   const [amount, setAmount] = useState('');
   const [quote, setQuote] = useState(null);
   const [fees, setFees] = useState(null);
@@ -244,48 +342,93 @@ const SwapScreen = ({ navigation, route }) => {
 
   // 检查交易状态
   const checkTransactionStatus = async (signature) => {
-    if (!signature || !selectedWallet) return;
-    
+    if (!signature || !selectedWallet?.id) {
+      console.error('缺少必要参数:', { signature, walletId: selectedWallet?.id });
+      showTransactionMessage('error', '交易信息不完整');
+      stopTransactionStatusCheck();
+      return;
+    }
+
     try {
-      // 如果签名是对象，提取实际的签名字符串
-      const actualSignature = typeof signature === 'object' ? signature.result : signature;
-      if (!actualSignature) {
-        console.error('无效的签名格式:', signature);
-        setTransactionStatus('failed');
-        setTransactionError('无效的交易签名格式');
+      const deviceId = await DeviceManager.getDeviceId();
+      
+      console.log('检查交易状态 - 请求参数:', {
+        walletId: selectedWallet.id,
+        signature: signature,
+        deviceId: deviceId,
+        请求URL: `/api/v1/solana/wallets/${selectedWallet.id}/swap/status/${signature}?device_id=${deviceId}`
+      });
+
+      const response = await api.getSolanaSwapStatus(
+        Number(selectedWallet.id),
+        signature,
+        deviceId
+      );
+
+      console.log('交易状态响应:', response);
+
+      if (response.status === 'error') {
+        console.error('查询交易状态失败:', response.message);
+        showTransactionMessage('error', response.message || '查询交易状态失败');
         stopTransactionStatusCheck();
         return;
       }
-      
-      const deviceId = await DeviceManager.getDeviceId();
-      console.log('检查交易状态:', {
-        deviceId,
-        walletId: selectedWallet.id,
-        signature: actualSignature
-      });
-      
-      const response = await api.getSolanaSwapStatus(deviceId, selectedWallet.id, actualSignature);
-      console.log('交易状态响应:', response);
-      
-      if (response.status === 'success') {
-        // 交易成功
-        setTransactionStatus('success');
+
+      if (response.data?.status === 'confirmed') {
+        console.log('交易确认成功:', response.data);
+        showTransactionMessage('success', '交易已确认');
+        handleSwapSuccess();
         stopTransactionStatusCheck();
-        
-        // 刷新余额
-        loadUserTokens();
-      } else if (response.status === 'pending') {
-        // 交易仍在处理中，继续检查
+      } else if (response.data?.status === 'pending') {
         console.log('交易处理中，继续检查...');
+        showTransactionMessage('info', '交易确认中...');
       } else {
-        // 交易失败
-        setTransactionStatus('failed');
-        setTransactionError(response.message || '交易失败');
+        console.log('未知的交易状态:', response.data?.status);
+        showTransactionMessage('error', '交易状态未知，请稍后查看');
         stopTransactionStatusCheck();
       }
     } catch (error) {
       console.error('检查交易状态出错:', error);
-      // 不要立即停止检查，可能是网络问题
+      showTransactionMessage('error', error.message || '查询交易状态失败');
+      stopTransactionStatusCheck();
+    }
+  };
+
+  // 添加错误计数器
+  const errorCount = React.useRef(0);
+
+  // 修改交易状态重置逻辑
+  const resetTransactionState = () => {
+    setTransactionStatus('idle');
+    setCurrentTransaction(null);
+    setTransactionError('');
+    errorCount.current = 0;
+  };
+
+  // 修改交易成功后的处理逻辑
+  const handleSwapSuccess = async () => {
+    try {
+      // 重置交易相关状态
+      setAmount('');
+      setQuote(null);
+      setFees(null);
+      
+      // 刷新数据
+      await Promise.all([
+        loadUserTokens(),
+        loadSwapTokens()
+      ]);
+      
+      // 显示成功消息
+      showTransactionMessage('success', '交易已完成');
+      
+      // 导航到交易记录页面
+      navigation.navigate('TransactionHistory', {
+        refreshTrigger: Date.now()  // 触发交易记录页面刷新
+      });
+    } catch (error) {
+      console.error('处理交易成功后续操作失败:', error);
+      showTransactionMessage('error', '数据刷新失败，请手动刷新');
     }
   };
 
@@ -312,61 +455,61 @@ const SwapScreen = ({ navigation, route }) => {
 
   // 修改报价刷新机制
   useEffect(() => {
-    if (isScreenFocused && fromToken && toToken && amount) {
+    // 只有在有金额输入且金额不为0时才请求报价
+    if (isScreenFocused && amount && amount !== '0' && fromToken && toToken) {
       debouncedGetQuote();
-    }
-  }, [fromToken, toToken, amount, slippage, isScreenFocused]);
-
-  // 修改定时刷新逻辑
-  useEffect(() => {
-    if (isScreenFocused && fromToken && toToken && amount && quote && !isInsufficientBalance) {
-      // 检查金额是否为 0 或无效
-      const parsedAmount = parseFloat(amount);
-      if (isNaN(parsedAmount) || parsedAmount <= 0) {
-        if (quoteRefreshInterval.current) {
-          clearInterval(quoteRefreshInterval.current);
-          quoteRefreshInterval.current = null;
-        }
-        return;
-      }
-      
-      // 清理之前的定时器
-      if (quoteRefreshInterval.current) {
-        clearInterval(quoteRefreshInterval.current);
-      }
-      
-      // 设置新的定时器，10秒刷新一次
-      quoteRefreshInterval.current = setInterval(() => {
-        if (isScreenFocused) {
-          getQuoteAndFees();
-        }
-      }, 10000);
     } else {
-      // 如果条件不满足，清除定时器
-      if (quoteRefreshInterval.current) {
-        clearInterval(quoteRefreshInterval.current);
-        quoteRefreshInterval.current = null;
-      }
+      // 如果没有输入金额或金额为0，清空报价
+      setQuote(null);
+      setFees(null);
     }
-
-    return () => {
-      if (quoteRefreshInterval.current) {
-        clearInterval(quoteRefreshInterval.current);
-        quoteRefreshInterval.current = null;
-      }
-    };
-  }, [fromToken, toToken, amount, isInsufficientBalance, isScreenFocused]);
+  }, [amount, slippage]); // 只监听金额和滑点的变化
 
   useEffect(() => {
     loadUserTokens();
     loadSwapTokens();
   }, [selectedWallet]);
 
+  // 添加新的 useEffect 来获取代币价格
   useEffect(() => {
-    if (fromToken && toToken && amount) {
-      getQuoteAndFees();
-    }
-  }, [fromToken, toToken, amount, slippage]);
+    const fetchTokenPrices = async () => {
+      if (!fromToken || !toToken || !selectedWallet) return;
+      
+      try {
+        const deviceId = await DeviceManager.getDeviceId();
+        const tokenAddresses = [fromToken.token_address, toToken.token_address];
+        
+        // 确保使用数字类型的钱包ID
+        const numericWalletId = Number(selectedWallet.id);
+        
+        console.log('获取代币价格:', {
+          钱包ID: numericWalletId,
+          设备ID: deviceId,
+          代币地址: tokenAddresses.join(',')
+        });
+        
+        const response = await api.getSolanaTokenPrices(
+          numericWalletId,  // 使用数字类型的钱包ID
+          deviceId,
+          tokenAddresses
+        );
+        
+        if (response.status === 'success' && response.data?.prices) {
+          console.log('代币价格数据:', response.data.prices);
+          setTokenPrices(response.data.prices);
+        }
+      } catch (error) {
+        console.error('获取代币价格失败:', error);
+      }
+    };
+
+    fetchTokenPrices();
+    
+    // 设置定时器，每60秒刷新一次价格
+    const priceInterval = setInterval(fetchTokenPrices, 60000);
+    
+    return () => clearInterval(priceInterval);
+  }, [fromToken?.token_address, toToken?.token_address, selectedWallet]);
 
   useEffect(() => {
     // Check if amount exceeds balance
@@ -492,7 +635,7 @@ const SwapScreen = ({ navigation, route }) => {
           .filter(token => token.is_visible)
           .map(token => ({
             ...token,
-            token_address: token.token_address || token.address // 确保统一使用 token_address
+            token_address: token.token_address || token.address
           }));
 
         console.log('用户代币列表加载成功:', {
@@ -506,26 +649,25 @@ const SwapScreen = ({ navigation, route }) => {
           }))
         });
         
+        // 更新默认代币的余额
+        const solToken = visibleTokens.find(t => t.token_address === DEFAULT_TOKENS.SOL.token_address);
+        const usdcToken = visibleTokens.find(t => t.token_address === DEFAULT_TOKENS.USDC.token_address);
+
+        if (solToken) {
+          setFromToken(prev => ({
+            ...prev,
+            balance_formatted: solToken.balance_formatted
+          }));
+        }
+
+        if (usdcToken) {
+          setToToken(prev => ({
+            ...prev,
+            balance_formatted: usdcToken.balance_formatted
+          }));
+        }
+
         setUserTokens(visibleTokens);
-
-        // Find SOL token
-        const solToken = visibleTokens.find(token => 
-          token.symbol === 'SOL' || 
-          token.token_address === 'So11111111111111111111111111111111111111112'
-        );
-
-        // If SOL token is found and no payment token is selected, set it as default
-        if (solToken && !fromToken) {
-          setFromToken(solToken);
-        }
-
-        // If current selected token is not in visible list, clear selection
-        if (fromToken && !visibleTokens.find(t => t.token_address === fromToken.token_address)) {
-          setFromToken(null);
-        }
-        if (toToken && !visibleTokens.find(t => t.token_address === toToken.token_address)) {
-          setToToken(null);
-        }
       }
     } catch (error) {
       console.error('加载用户代币列表失败:', error);
@@ -538,209 +680,122 @@ const SwapScreen = ({ navigation, route }) => {
   const loadSwapTokens = async () => {
     try {
       const deviceId = await DeviceManager.getDeviceId();
+      
+      // 确保使用数字类型的钱包ID
+      const numericWalletId = Number(selectedWallet.id);
+      
+      console.log('加载交换代币列表:', {
+        钱包ID: numericWalletId,
+        设备ID: deviceId
+      });
+      
       const response = await api.getSolanaSwapTokens(
-        deviceId,
-        selectedWallet.id
+        numericWalletId,  // 使用数字类型的钱包ID
+        deviceId
       );
       
       if (response?.status === 'success' && response.data?.tokens) {
         setSwapTokens(response.data.tokens);
-
-        // Find USDC token
-        const usdcToken = response.data.tokens.find(token => 
-          token.symbol === 'USDC' || 
-          token.token_address === 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
-        );
-
-        // If USDC token is found and no receive token is selected, set it as default
-        if (usdcToken && !toToken) {
-          setToToken(usdcToken);
-        }
       }
     } catch (error) {
-      console.error('Failed to load swap tokens:', error);
+      console.error('加载交换代币列表失败:', error);
     }
   };
 
   const handleAmountChange = (value) => {
-    // 如果输入值为空或undefined，直接设置为空字符串并清空报价
-    if (!value) {
-      setAmount('');
-      setQuote(null);
-      setFees(null);
-      return;
-    }
-    
-    // 移除所有非数字和小数点字符
-    value = value.replace(/[^0-9.]/g, '');
-    
-    // 确保只有一个小数点
-    const parts = value.split('.');
+    // 移除非数字字符，保留一个小数点
+    let cleanedValue = value.replace(/[^\d.]/g, '');
+    const parts = cleanedValue.split('.');
     if (parts.length > 2) {
-      value = parts[0] + '.' + parts[1];
+      cleanedValue = parts[0] + '.' + parts.slice(1).join('');
     }
-    
+
+    // 如果以小数点开始，添加前导零
+    if (cleanedValue.startsWith('.')) {
+      cleanedValue = '0' + cleanedValue;
+    }
+
     // 限制小数位数
-    if (parts.length === 2) {
-      const maxDecimals = fromToken?.decimals || 9;
-      if (parts[1].length > maxDecimals) {
-        parts[1] = parts[1].slice(0, maxDecimals);
-        value = parts[0] + '.' + parts[1];
-      }
+    if (parts.length === 2 && parts[1].length > fromToken?.decimals) {
+      cleanedValue = parts[0] + '.' + parts[1].slice(0, fromToken?.decimals);
     }
 
-    // 如果以小数点开始，在前面添加0
-    if (value.startsWith('.')) {
-      value = '0' + value;
-    }
-
-    // 如果是空字符串或只有小数点，设置为空并清空报价
-    if (value === '' || value === '.') {
-      value = '';
-      setQuote(null);
-      setFees(null);
+    // 检查金额是否超过最大限制 (1000 SOL)
+    const numValue = parseFloat(cleanedValue || '0');
+    if (numValue > 1000) {
+      showTransactionMessage('error', '输入金额不能超过1000 SOL');
       return;
     }
 
-    // 移除前导零，但保留小数点后的零
-    if (value.includes('.')) {
-      const [integerPart, decimalPart] = value.split('.');
-      // 如果整数部分是0或一系列0，保留一个0
-      const formattedIntegerPart = /^0+$/.test(integerPart) ? '0' : integerPart.replace(/^0+/, '') || '0';
-      value = formattedIntegerPart + '.' + decimalPart;
-    } else {
-      // 如果没有小数点，移除所有前导零
-      value = value.replace(/^0+/, '') || '0';
-    }
-
-    // 打印日志以便调试
     console.log('金额输入处理:', {
-      原始输入: value,
       代币: fromToken?.symbol,
       代币精度: fromToken?.decimals,
-      处理后金额: value,
-      整数部分: value.split('.')[0],
-      小数部分: value.split('.')[1] || ''
+      原始输入: value,
+      处理后金额: cleanedValue,
+      数值: numValue
     });
 
-    setAmount(value);
+    setAmount(cleanedValue);
   };
 
   const getQuoteAndFees = async () => {
     try {
-      // 先验证必要参数
-      if (!fromToken?.token_address || !toToken?.token_address || !amount) {
-        console.log('缺少必要参数:', {
-          fromTokenAddress: fromToken?.token_address,
-          toTokenAddress: toToken?.token_address,
-          amount: amount
-        });
-        setQuote(null);
-        setFees(null);
+      if (!fromToken || !toToken || !amount || parseFloat(amount) <= 0) {
+        console.log('获取报价 - 参数无效:', { fromToken, toToken, amount });
         return;
       }
 
       setIsQuoteLoading(true);
+      console.log('==================== 开始获取兑换报价 ====================');
+      
+      // 获取设备ID
       const deviceId = await DeviceManager.getDeviceId();
       
-      // 移除千分位分隔符
-      const cleanAmount = amount.replace(/,/g, '');
-      
-      // 转换金额为链上精度
-      const amountBN = new BigNumber(cleanAmount);
-      const decimals = fromToken.decimals || 0;
-      const rawAmount = amountBN.multipliedBy(new BigNumber(10).pow(decimals)).toFixed(0);
-      
-      console.log('金额转换:', {
-        输入金额: cleanAmount,
-        代币精度: decimals,
-        链上金额: rawAmount
+      console.log('发送API请求参数:', {
+        钱包ID: selectedWallet.id,
+        设备ID: deviceId,
+        输入金额: amount,
+        输入代币: fromToken.symbol,
+        输出代币: toToken.symbol,
+        滑点: slippage
       });
 
-      // 构建API请求参数
+      // 修正参数结构
       const params = {
         device_id: deviceId,
         from_token: fromToken.token_address,
         to_token: toToken.token_address,
-        amount: rawAmount,
+        amount: amount,
         slippage: slippage
       };
+
+      console.log('API请求参数:', params);
       
-      console.log('发送兑换报价请求:', {
-        设备ID: params.device_id,
-        支付代币: params.from_token,
-        接收代币: params.to_token,
-        原始数量: cleanAmount,
-        链上数量: params.amount,
-        滑点: params.slippage
-      });
+      const response = await api.getSwapQuote(selectedWallet.id, params);
 
-      // 修正：使用 api.getSwapQuote 方法
-      const response = await api.getSwapQuote(
-        selectedWallet.id,
-        params
-      );
-
-      if (response?.status === 'success') {
-        const quoteData = response.data;
+      if (response.status === 'success') {
+        const { data } = response;
         
-        console.log('原始兑换数据:', {
-          fromTokenAmount: quoteData.from_token.amount,
-          fromTokenDecimals: fromToken.decimals,
-          toTokenAmount: quoteData.to_token.amount,
-          toTokenDecimals: toToken.decimals
+        // 添加详细日志
+        console.log('API原始响应数据:', JSON.stringify(response.data, null, 2));
+        console.log('解析后的报价数据:', {
+          输入代币: {
+            地址: data.from_token.address,
+            原始数量: data.from_token.amount,
+          },
+          输出代币: {
+            地址: data.to_token.address,
+            原始数量: data.to_token.amount,
+          },
+          最低获得: data.minimum_received
         });
         
-        // 计算实际兑换率
-        const fromValueBN = new BigNumber(quoteData.from_token.amount).dividedBy(new BigNumber(10).pow(fromToken.decimals));
-        const toValueBN = new BigNumber(quoteData.to_token.amount).dividedBy(new BigNumber(10).pow(toToken.decimals));
-        const rateBN = toValueBN.dividedBy(fromValueBN);
-        
-        console.log('兑换率计算:', {
-          fromValue: fromValueBN.toString(),
-          toValue: toValueBN.toString(),
-          rate: rateBN.toString(),
-          humanReadable: `1 ${fromToken.symbol} = ${rateBN.toFixed(6)} ${toToken.symbol}`
-        });
-        
-        // 根据代币精度正确格式化显示金额
-        const inputAmountFormatted = cleanAmount;
-        const outputAmountFormatted = formatTokenAmount(quoteData.to_token.amount, toToken.decimals);
-        
-        console.log('兑换报价结果:', {
-          inputAmount: quoteData.from_token.amount,
-          outputAmount: quoteData.to_token.amount,
-          displayInputAmount: inputAmountFormatted,
-          displayOutputAmount: outputAmountFormatted
-        });
-        
-        setQuote({
-          ...quoteData,
-          displayInputAmount: inputAmountFormatted,
-          displayOutputAmount: outputAmountFormatted
-        });
-        setFees(quoteData.fees);
-        
-        // 记录价格影响数据
-        if (quoteData.price_impact) {
-          const priceImpact = parseFloat(quoteData.price_impact);
-          console.log('价格影响数据:', {
-            '原始price_impact': quoteData.price_impact,
-            '当前priceChange': priceImpact,
-            '解析后的impact': priceImpact
-          });
-        }
-      } else {
-        console.error('获取兑换报价失败:', response);
-        Alert.alert('提示', '获取兑换报价失败，请重试');
-        setQuote(null);
-        setFees(null);
+        setQuote(data);
+        setFees(data.quote_id.platformFee);
       }
     } catch (error) {
-      console.error('获取兑换报价出错:', error);
-      Alert.alert('提示', '获取兑换报价失败，请重试');
-      setQuote(null);
-      setFees(null);
+      console.error('获取报价出错:', error);
+      showTransactionMessage('error', error.message || '获取报价失败，请重试');
     } finally {
       setIsQuoteLoading(false);
     }
@@ -817,19 +872,17 @@ const SwapScreen = ({ navigation, route }) => {
       // 获取设备ID
       const deviceId = await DeviceManager.getDeviceId();
       
-      // 转换金额为链上精度
-      const amountBN = new BigNumber(amount);
-      const decimals = fromToken.decimals || 0;
-      const rawAmount = amountBN.multipliedBy(new BigNumber(10).pow(decimals)).toFixed(0);
+      // 使用报价中的链上金额，而不是重新计算
+      const rawAmount = quote.from_token.amount;
       
       // 构建API请求参数
       const swapParams = {
         device_id: deviceId,
         from_token: fromToken.token_address,
         to_token: toToken.token_address,
-        amount: rawAmount,
+        amount: rawAmount,  // 使用报价中的链上金额
         slippage: slippage,
-        quote_id: JSON.stringify(quote),
+        quote_id: quote.quote_id,
         payment_password: paymentPassword
       };
 
@@ -837,11 +890,10 @@ const SwapScreen = ({ navigation, route }) => {
         ...swapParams,
         payment_password: '******',  // 隐藏密码
         原始金额: amount,
-        链上金额: rawAmount,
-        quote_id: '(长度:' + JSON.stringify(quote).length + ')'  // 打印 quote 长度而不是内容
+        链上金额: rawAmount
       });
       
-      // 直接传递 walletId 作为路径参数
+      // 执行兑换
       const response = await api.executeSolanaSwap(selectedWallet.id, swapParams);
       
       if (response?.status === 'success') {
@@ -916,32 +968,35 @@ const SwapScreen = ({ navigation, route }) => {
   };
 
   const calculateExchangeRate = (quote, fromToken, toToken) => {
+    if (!quote?.from_token?.amount || !quote?.to_token?.amount || !fromToken?.decimals || !toToken?.decimals) {
+      return '计算中...';
+    }
+
     try {
-      if (!quote || !fromToken || !toToken) return '计算中...';
+      const fromAmount = new BigNumber(quote.from_token.amount);
+      const toAmount = new BigNumber(quote.to_token.amount);
       
-      // 使用 from_token 和 to_token 的 amount 计算兑换率
-      const fromAmount = quote.from_token?.amount;
-      const toAmount = quote.to_token?.amount;
+      // 考虑代币精度
+      const fromDecimals = new BigNumber(10).pow(fromToken.decimals);
+      const toDecimals = new BigNumber(10).pow(toToken.decimals);
       
-      if (!fromAmount || !toAmount) return '计算中...';
+      // 计算实际金额
+      const actualFromAmount = fromAmount.dividedBy(fromDecimals);
+      const actualToAmount = toAmount.dividedBy(toDecimals);
       
-      const fromValue = new BigNumber(fromAmount).dividedBy(new BigNumber(10).pow(fromToken.decimals));
-      const toValue = new BigNumber(toAmount).dividedBy(new BigNumber(10).pow(toToken.decimals));
+      // 计算兑换率
+      const rate = actualToAmount.dividedBy(actualFromAmount);
       
-      if (fromValue.isZero()) return '计算中...';
-      
-      const rate = toValue.dividedBy(fromValue);
+      console.log('兑换率计算:', {
+        输入金额: actualFromAmount.toString(),
+        输出金额: actualToAmount.toString(),
+        兑换率: rate.toString()
+      });
       
       // 格式化显示
-      if (rate.isLessThan(0.000001)) {
-        return `1 ${fromToken.symbol} ≈ ${rate.toExponential(4)} ${toToken.symbol}`;
-      } else if (rate.isGreaterThan(1000000)) {
-        return `1 ${fromToken.symbol} ≈ ${rate.toExponential(4)} ${toToken.symbol}`;
-      } else {
-        return `1 ${fromToken.symbol} ≈ ${rate.toFixed(6).replace(/\.?0+$/, '')} ${toToken.symbol}`;
-      }
+      return `1 ${fromToken.symbol} = ${rate.toFormat(6)} ${toToken.symbol}`;
     } catch (error) {
-      console.error('计算兑换率错误:', error);
+      console.error('兑换率计算错误:', error);
       return '计算中...';
     }
   };
@@ -1031,7 +1086,7 @@ const SwapScreen = ({ navigation, route }) => {
   const renderTokenSelector = (token, type, label) => (
     <View>
       <Text style={styles.sectionTitle}>
-        {type === 'from' ? 'From' : 'To'}
+        {type === 'from' ? '支付' : '接收'}
       </Text>
       <TouchableOpacity 
         style={[
@@ -1050,21 +1105,35 @@ const SwapScreen = ({ navigation, route }) => {
               defaultSource={require('../../../assets/default-token.png')}
             />
             <View style={styles.tokenInfo}>
-              <Text style={styles.tokenSymbol}>{token.symbol}</Text>
+              <View style={styles.tokenNameRow}>
+                <Text style={styles.tokenSymbol}>{token.symbol}</Text>
+                {tokenPrices[token.token_address]?.price && (
+                  <Text style={styles.tokenPrice}>
+                    ${tokenPrices[token.token_address].price.toFixed(2)}
+                  </Text>
+                )}
+              </View>
               <Text style={styles.tokenBalance}>
                 {type === 'from' 
-                  ? `Balance: ${token?.balance_formatted || '0'}`
+                  ? `余额: ${token?.balance_formatted || '0'}`
                   : isQuoteLoading 
                     ? <SkeletonLoader width={120} height={16} style={{ marginTop: 2 }} />
-                    : quote && toToken
-                      ? `Estimated: ${formatTokenAmount(quote.to_token.amount, toToken.decimals)}`
+                    : quote?.to_token?.amount
+                      ? (() => {
+                          console.log('预计获得数量计算:', {
+                            原始数量: quote.to_token.amount,
+                            代币精度: token.decimals,
+                            代币符号: token.symbol
+                          });
+                          return `预计获得: ${formatDisplayAmount(quote.to_token.amount, token.decimals)} ${token.symbol}`;
+                        })()
                       : ''
                 }
               </Text>
             </View>
           </>
         ) : (
-          <Text style={styles.selectTokenText}>Select {label}</Text>
+          <Text style={styles.selectTokenText}>选择{type === 'from' ? '支付' : '接收'}代币</Text>
         )}
         <Ionicons name="chevron-down" size={20} color="#8E8E8E" />
       </TouchableOpacity>
@@ -1087,33 +1156,44 @@ const SwapScreen = ({ navigation, route }) => {
                 onPress={() => {
                   if (fromToken?.balance_formatted) {
                     const balance = parseFloat(fromToken.balance_formatted.replace(/,/g, ''));
-                    setAmount((balance * 0.25).toString());
+                    const amount = (balance * 0.25).toFixed(fromToken.decimals);
+                    console.log('设置25%金额:', {
+                      余额: balance,
+                      计算金额: amount
+                    });
+                    setAmount(amount);
                   }
                 }}
               >
-                <Text style={styles.amountButtonText}>MIN</Text>
+                <Text style={styles.amountButtonText}>25%</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.amountButton}
                 onPress={() => {
                   if (fromToken?.balance_formatted) {
                     const balance = parseFloat(fromToken.balance_formatted.replace(/,/g, ''));
-                    setAmount((balance * 0.5).toString());
+                    const amount = (balance * 0.5).toFixed(fromToken.decimals);
+                    console.log('设置50%金额:', {
+                      余额: balance,
+                      计算金额: amount
+                    });
+                    setAmount(amount);
                   }
                 }}
               >
-                <Text style={styles.amountButtonText}>HALF</Text>
+                <Text style={styles.amountButtonText}>50%</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.amountButton}
                 onPress={() => {
                   if (fromToken?.balance_formatted) {
                     const maxAmount = fromToken.balance_formatted.replace(/,/g, '');
+                    console.log('设置最大金额:', maxAmount);
                     setAmount(maxAmount);
                   }
                 }}
               >
-                <Text style={styles.amountButtonText}>MAX</Text>
+                <Text style={styles.amountButtonText}>最大</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -1265,6 +1345,28 @@ const SwapScreen = ({ navigation, route }) => {
     );
   };
 
+  // 修改消息提示组件，添加不同类型的样式
+  const MessageBar = ({ type, message }) => {
+    const getBackgroundColor = () => {
+      switch (type) {
+        case 'success':
+          return '#4CAF50';
+        case 'error':
+          return '#F44336';
+        case 'info':
+          return '#2196F3';
+        default:
+          return '#2196F3';
+      }
+    };
+
+    return (
+      <View style={[styles.messageBar, { backgroundColor: getBackgroundColor() }]}>
+        <Text style={styles.messageText}>{message}</Text>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient
@@ -1358,6 +1460,7 @@ const SwapScreen = ({ navigation, route }) => {
                 calculateExchangeRate={calculateExchangeRate}
                 formatTokenAmount={formatTokenAmount}
                 formatPriceImpact={formatPriceImpact}
+                tokenPrices={tokenPrices}
               />
             </View>
           </ScrollView>
@@ -1378,12 +1481,7 @@ const SwapScreen = ({ navigation, route }) => {
 
       {/* 顶部消息提示 */}
       {showMessage && (
-        <View style={[
-          styles.messageBar,
-          messageType === 'success' ? styles.successBar : styles.errorBar
-        ]}>
-          <Text style={styles.messageText}>{messageText}</Text>
-        </View>
+        <MessageBar type={messageType} message={messageText} />
       )}
     </SafeAreaView>
   );
@@ -1487,11 +1585,21 @@ const styles = StyleSheet.create({
   tokenInfo: {
     flex: 1,
   },
+  tokenNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   tokenSymbol: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 2,
+  },
+  tokenPrice: {
+    color: '#8E8E8E',
+    fontSize: 14,
+    fontWeight: '500',
   },
   tokenBalance: {
     color: '#8E8E8E',
