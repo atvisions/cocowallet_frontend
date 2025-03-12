@@ -25,7 +25,7 @@ import { CommonActions, useFocusEffect } from '@react-navigation/native';
 import { useWalletNavigation } from '../../hooks/useWalletNavigation';
 
 const WalletScreen = ({ navigation }) => {
-  const { selectedWallet, tokens, setTokens, setWallets, setSelectedWallet, getTokensCache, updateTokensCache, backgroundGradient, updateBackgroundGradient } = useWallet();
+  const { selectedWallet, tokens, setTokens, setWallets, setSelectedWallet, getTokensCache, updateTokensCache } = useWallet();
   const [wallets, setWalletsState] = useState([]);
   const [totalBalance, setTotalBalance] = useState('0.00');
   const [isLoading, setIsLoading] = useState(true);
@@ -104,34 +104,10 @@ const WalletScreen = ({ navigation }) => {
 
   useEffect(() => {
     if (change24h !== null) {
-      const color = change24h >= 0 
-        ? 'rgba(31, 197, 149, 0.08)'
-        : 'rgba(255, 75, 85, 0.08)';
-      console.log('背景色:', color);  // 简化日志输出
+      // 移除背景色变化逻辑
+      console.log('价格变化:', change24h);
     }
   }, [change24h]);
-
-  useEffect(() => {
-    if (tokens && tokens.length > 0) {
-      // 使用第一个代币的价格变化来更新背景色
-      const mainToken = tokens[0];
-      if (mainToken && mainToken.price_change_24h !== undefined) {
-        // 确保传递数字类型的价格变化值
-        let priceChange = mainToken.price_change_24h;
-        if (typeof priceChange === 'string') {
-          priceChange = parseFloat(priceChange.replace('%', '').replace('+', ''));
-        }
-        
-        console.log('Updating background gradient from token:', {
-          token: mainToken.symbol,
-          price_change_24h: mainToken.price_change_24h,
-          numeric_value: priceChange
-        });
-        
-        updateBackgroundGradient(priceChange);
-      }
-    }
-  }, [tokens, updateBackgroundGradient]);
 
   const loadInitialData = async () => {
     try {
@@ -547,10 +523,7 @@ const WalletScreen = ({ navigation }) => {
 
   const renderAssetsSection = () => (
     <View style={styles.assetsSection}>
-      <View style={[
-        styles.tokenListContainer,
-        { backgroundColor: change24h >= 0 ? '#1B2C41' : '#2C2941' }
-      ]}>
+      <View style={styles.tokenListContainer}>
         {isLoading ? (
           renderTokenSkeleton()
         ) : (
@@ -693,7 +666,7 @@ const WalletScreen = ({ navigation }) => {
   return (
     <View key={screenKey} style={styles.container}>
       <LinearGradient
-        colors={[backgroundGradient, '#171C32']}
+        colors={['#2C2941', '#171C32']}
         style={styles.backgroundGradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 0.6 }}
@@ -979,6 +952,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 8,
     marginHorizontal: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
   },
   tokenItem: {
     flexDirection: 'row',

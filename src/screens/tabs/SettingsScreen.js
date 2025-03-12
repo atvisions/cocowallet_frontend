@@ -23,7 +23,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SettingsScreen({ navigation }) {
   const [hasPaymentPassword, setHasPaymentPassword] = useState(false);
-  const { selectedWallet, setSelectedWallet, wallets, backgroundGradient } = useWallet();
+  const { selectedWallet, setSelectedWallet, wallets } = useWallet();
   const insets = useSafeAreaInsets();
 
   useFocusEffect(
@@ -78,40 +78,6 @@ export default function SettingsScreen({ navigation }) {
         index: 0,
         routes: [{ name: 'Main' }],
       });
-    }
-  };
-
-  // 获取背景颜色
-  const getCardBackgroundColor = () => {
-    // 根据主背景色返回适合的卡片背景色
-    if (backgroundGradient.includes('27, 76, 49') || backgroundGradient === '#1B4C31') {
-      // 绿色背景下使用半透明绿色
-      return 'rgba(27, 76, 49, 0.4)';
-    } else {
-      // 紫色背景下使用原来的紫色
-      return '#2C2941';
-    }
-  };
-
-  // 获取分割线颜色
-  const getDividerColor = () => {
-    if (backgroundGradient.includes('27, 76, 49') || backgroundGradient === '#1B4C31') {
-      // 绿色背景下使用更浅的分割线
-      return 'rgba(255, 255, 255, 0.08)';
-    } else {
-      // 紫色背景下使用原来的分割线颜色
-      return 'rgba(255, 255, 255, 0.05)';
-    }
-  };
-
-  // 获取图标颜色
-  const getIconColor = () => {
-    if (backgroundGradient.includes('27, 76, 49') || backgroundGradient === '#1B4C31') {
-      // 绿色背景下使用更亮的图标颜色
-      return '#E0F2EA';
-    } else {
-      // 紫色背景下使用原来的图标颜色
-      return '#FFFFFF';
     }
   };
 
@@ -197,20 +163,20 @@ export default function SettingsScreen({ navigation }) {
   const renderSettingItem = (icon, title, onPress, showDivider = true) => (
     <>
       <TouchableOpacity style={styles.settingItem} onPress={onPress}>
-        <View style={[styles.settingIconContainer, { backgroundColor: backgroundGradient.includes('27, 76, 49') ? 'rgba(27, 76, 49, 0.6)' : 'rgba(44, 41, 65, 0.8)' }]}>
-          <Ionicons name={icon} size={22} color={getIconColor()} />
+        <View style={styles.settingIconContainer}>
+          <Ionicons name={icon} size={22} color="#FFFFFF" />
         </View>
         <Text style={styles.settingTitle}>{title}</Text>
         <Ionicons name="chevron-forward" size={20} color="#8E8E8E" />
       </TouchableOpacity>
-      {showDivider && <View style={[styles.divider, { backgroundColor: getDividerColor() }]} />}
+      {showDivider && <View style={styles.divider} />}
     </>
   );
 
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient
-        colors={[backgroundGradient, '#171C32']}
+        colors={['#2C2941', '#171C32']}
         style={styles.backgroundGradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 0.6 }}
@@ -320,7 +286,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#272C52',
+    backgroundColor: '#2C2941',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -411,6 +377,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
+    backgroundColor: 'rgba(44, 41, 65, 0.8)',
   },
   settingTitle: {
     flex: 1,
@@ -421,5 +388,6 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     marginLeft: 72,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
 });

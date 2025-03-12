@@ -29,6 +29,7 @@ import { formatTokenAmount } from '../../utils/format';
 import BigNumber from 'bignumber.js';
 import { logger } from '../../utils/logger';
 import axios from 'axios';
+import { BASE_URL } from '../../config/constants'; // 确保导入BASE_URL
 
 const SkeletonLoader = ({ width, height, style }) => {
   return (
@@ -189,6 +190,10 @@ const QuoteDetails = ({ quote, fees, toToken, fromToken, isQuoteLoading, calcula
     ? `$${fromTokenPrice.toFixed(2)} / $${toTokenPrice.toFixed(2)}`
     : 'Loading...';
 
+  // 处理网络费用显示
+  const networkFee = quote.network_fee || (fees ? fees : 'Calculating...');
+  const networkFeeDisplay = typeof networkFee === 'string' ? networkFee : 'Calculating...';
+
   return (
     <View style={styles.quoteDetailsContainer}>
       <View style={styles.quoteRow}>
@@ -213,7 +218,7 @@ const QuoteDetails = ({ quote, fees, toToken, fromToken, isQuoteLoading, calcula
       <View style={styles.quoteRow}>
         <Text style={styles.quoteLabel}>Network Fee</Text>
         <Text style={styles.quoteValue}>
-          {fees ? `${fees.amount} ${fees.token}` : 'Calculating...'}
+          {networkFeeDisplay === 'Calculating...' ? 'Calculating...' : `${networkFeeDisplay} SOL`}
         </Text>
       </View>
     </View>
@@ -226,7 +231,7 @@ const TransactionStatusBar = ({ status, message }) => {
 };
 
 const SwapScreen = ({ navigation, route }) => {
-  const { selectedWallet, backgroundGradient } = useWallet();
+  const { selectedWallet } = useWallet();
   const [userTokens, setUserTokens] = useState([]);
   const [swapTokens, setSwapTokens] = useState([]);
   const [fromToken, setFromToken] = useState(DEFAULT_TOKENS.SOL);
@@ -251,6 +256,8 @@ const SwapScreen = ({ navigation, route }) => {
   const [messageType, setMessageType] = useState('');
   const [messageText, setMessageText] = useState('');
   const [loadingText, setLoadingText] = useState('');
+  const [estimatedFees, setEstimatedFees] = useState(null);
+  const [isLoadingFees, setIsLoadingFees] = useState(false);
 
   // 使用 useRef 而不是 useState 来跟踪定时器和计数器
   const transactionStatusRef = React.useRef('idle');
@@ -428,7 +435,32 @@ const SwapScreen = ({ navigation, route }) => {
           showTransactionMessage('success', 'Transaction confirmed');
           // 先停止检查，再处理成功逻辑
           stopTransactionStatusCheck();
-          handleSwapSuccess();
+          // 重置交易相关状态
+          resetTransactionState();
+          // 延迟导航到交易记录页面
+          setTimeout(() => {
+            try {
+              // 使用更安全的导航方式
+              if (navigation.canNavigate && navigation.canNavigate('TransactionHistory')) {
+                navigation.navigate('TransactionHistory', {
+                  refreshTrigger: Date.now()
+                });
+              } else if (navigation.canNavigate && navigation.canNavigate('MainStack')) {
+                navigation.navigate('MainStack', {
+                  screen: 'TransactionHistory',
+                  params: {
+                    refreshTrigger: Date.now()
+                  }
+                });
+              } else {
+                console.log('Unable to navigate to transaction history page, showing success message');
+                showTransactionMessage('success', 'Transaction completed');
+              }
+            } catch (navError) {
+              console.error('Failed to navigate to transaction history page:', navError);
+              showTransactionMessage('success', 'Transaction completed');
+            }
+          }, 1500);
           break;
         case 'failed':
           console.log('Transaction failed');
@@ -493,46 +525,6 @@ const SwapScreen = ({ navigation, route }) => {
     // 刷新数据
     loadUserTokens();
     loadSwapTokens();
-  };
-
-  // 修改交易成功的处理函数
-  const handleSwapSuccess = async () => {
-    try {
-      console.log('Processing transaction success');
-      // 确保先停止状态检查
-      stopTransactionStatusCheck();
-      
-      // 重置交易相关状态
-      resetTransactionState();
-      
-      // 延迟导航到交易记录页面
-      setTimeout(() => {
-        try {
-          // 使用更安全的导航方式
-          if (navigation.canNavigate && navigation.canNavigate('TransactionHistory')) {
-            navigation.navigate('TransactionHistory', {
-              refreshTrigger: Date.now()
-            });
-          } else if (navigation.canNavigate && navigation.canNavigate('MainStack')) {
-            navigation.navigate('MainStack', {
-              screen: 'TransactionHistory',
-              params: {
-                refreshTrigger: Date.now()
-              }
-            });
-          } else {
-            console.log('Unable to navigate to transaction history page, showing success message');
-            showTransactionMessage('success', 'Transaction completed');
-          }
-        } catch (navError) {
-          console.error('Failed to navigate to transaction history page:', navError);
-          showTransactionMessage('success', 'Transaction completed');
-        }
-      }, 1500);
-    } catch (error) {
-      console.error('Failed to process transaction success follow-up operations:', error);
-      showTransactionMessage('info', 'Transaction submitted, please refresh manually');
-    }
   };
 
   // 修改开始检查交易状态的函数
@@ -972,7 +964,47 @@ const SwapScreen = ({ navigation, route }) => {
         });
         
         setQuote(data);
-        setFees(data.quote_id.platformFee);
+        
+        // 只有在成功获取报价后，且所有必要参数都存在时，才获取网络费用
+        if (selectedWallet && fromToken && toToken && amount && parseFloat(amount) > 0) {
+          try {
+            console.log('开始获取网络费用');
+            const feesResponse = await api.getSolanaSwapEstimateFees(
+              selectedWallet.id,
+              fromToken.token_address,
+              toToken.token_address,
+              amount
+            );
+            
+            console.log('网络费用响应:', feesResponse);
+            
+            if (feesResponse.status === 'success' && feesResponse.data) {
+              console.log('设置网络费用:', feesResponse.data);
+              
+              // 更新报价对象，添加网络费用
+              const networkFee = feesResponse.data.networkFee || feesResponse.data.amount || '0.000001';
+              setQuote(prev => ({
+                ...prev,
+                network_fee: networkFee
+              }));
+              
+              setFees(networkFee);
+            } else {
+              console.log('网络费用响应无效:', feesResponse);
+              setFees('0.000001');
+            }
+          } catch (feeError) {
+            console.error('获取网络费用失败:', feeError);
+            setFees('0.000001');
+          }
+        } else {
+          console.log('跳过费用请求 - 参数不完整:', { 
+            wallet: selectedWallet?.id, 
+            fromToken: fromToken?.token_address, 
+            toToken: toToken?.token_address, 
+            amount 
+          });
+        }
       }
     } catch (error) {
       console.error('获取报价出错:', error);
@@ -1099,7 +1131,12 @@ const SwapScreen = ({ navigation, route }) => {
   };
 
   const handleSlippageChange = (newSlippage) => {
+    console.log('滑点设置已更改:', newSlippage);
     setSlippage(newSlippage);
+    // 如果有金额输入，重新获取报价
+    if (amount && parseFloat(amount) > 0) {
+      debouncedGetQuote();
+    }
   };
 
   const handleTokenSelect = (type) => {
@@ -1208,14 +1245,8 @@ const SwapScreen = ({ navigation, route }) => {
 
   // 获取背景颜色
   const getBackgroundColor = () => {
-    // 根据主背景色返回适合的卡片背景色
-    if (backgroundGradient.includes('27, 76, 49') || backgroundGradient === '#1B4C31') {
-      // 绿色背景下使用更协调的卡片背景色
-      return '#1B3C31'; // 更深一点的绿色，更协调
-    } else {
-      // 紫色背景下保持原样
-      return '#2C2941';
-    }
+    // 固定返回紫色背景
+    return '#2C2941';
   };
 
   const isExchangeRateReasonable = (quote, fromToken, toToken) => {
@@ -1255,17 +1286,12 @@ const SwapScreen = ({ navigation, route }) => {
   };
 
   const renderTokenSelector = (token, type, label) => (
-    <View>
+    <View style={styles.tokenSelectorWrapper}>
       <Text style={styles.sectionTitle}>
         {type === 'from' ? 'Pay' : 'Receive'}
       </Text>
       <TouchableOpacity 
-        style={[
-          styles.tokenSelector,
-          {
-            backgroundColor: backgroundGradient.includes('27, 76, 49') || backgroundGradient === '#1B4C31' ? 'rgba(27, 76, 49, 0.2)' : '#282541'
-          }
-        ]}
+        style={styles.tokenSelector}
         onPress={() => handleTokenSelect(type)}
       >
         {token ? (
@@ -1375,7 +1401,8 @@ const SwapScreen = ({ navigation, route }) => {
 
   const renderSwapButton = () => {
     const isRateReasonable = isExchangeRateReasonable(quote, fromToken, toToken);
-    const isDisabled = !fromToken || !toToken || !amount || isLoading || isInsufficientBalance;
+    // 修改禁用条件，添加isQuoteLoading检查
+    const isDisabled = !fromToken || !toToken || !amount || isLoading || isInsufficientBalance || isQuoteLoading || !quote;
     
     const handleSwapPress = async () => {
       if (!fromToken || !toToken || !amount || !quote || !selectedWallet) {
@@ -1414,6 +1441,20 @@ const SwapScreen = ({ navigation, route }) => {
       });
     };
 
+    // 根据加载状态显示不同的按钮文本
+    const getButtonText = () => {
+      if (isInsufficientBalance) {
+        return 'Insufficient Balance';
+      }
+      if (isQuoteLoading) {
+        return 'Loading Quote...';
+      }
+      if (!quote && amount) {
+        return 'Waiting for Quote';
+      }
+      return 'Swap';
+    };
+
     return (
       <View style={styles.swapButtonContainer}>
         {quote && !isRateReasonable && (
@@ -1426,14 +1467,13 @@ const SwapScreen = ({ navigation, route }) => {
         <TouchableOpacity
           style={[
             styles.swapButton,
-            isDisabled && styles.swapButtonDisabled,
-            isInsufficientBalance && styles.swapButtonWarning
+            isDisabled && styles.swapButtonDisabled
           ]}
           onPress={handleSwapPress}
           disabled={isDisabled}
         >
           <LinearGradient
-            colors={isInsufficientBalance ? ['#FFB236', '#FF9500'] : ['#1FC595', '#17A982']}
+            colors={['#1FC595', '#17A982']}
             style={styles.swapButtonGradient}
           >
             {isLoading ? (
@@ -1441,9 +1481,14 @@ const SwapScreen = ({ navigation, route }) => {
                 <ActivityIndicator color="#FFFFFF" />
                 <Text style={styles.loadingText}>{loadingText}</Text>
               </View>
+            ) : isQuoteLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator color="#FFFFFF" size="small" />
+                <Text style={styles.loadingText}>Loading Quote...</Text>
+              </View>
             ) : (
               <Text style={styles.swapButtonText}>
-                {isInsufficientBalance ? 'Insufficient Balance' : 'Swap'}
+                {getButtonText()}
               </Text>
             )}
           </LinearGradient>
@@ -1567,10 +1612,22 @@ const SwapScreen = ({ navigation, route }) => {
     );
   };
 
+  // 删除或修改getEstimatedFees函数，因为我们现在只在getQuoteAndFees中请求费用
+  const getEstimatedFees = async () => {
+    console.log('此函数已不再单独使用，费用请求已集成到getQuoteAndFees中');
+    // 保留函数但不执行任何操作，以防其他地方有调用
+  };
+
+  // 修改useEffect钩子，移除组件挂载时的费用请求
+  useEffect(() => {
+    // 移除在组件挂载时自动请求费用的逻辑
+    // 空函数体，不执行任何操作
+  }, []); // 仅在组件挂载时执行一次，但不做任何操作
+
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient
-        colors={[backgroundGradient, '#171C32']}
+        colors={['#2C2941', '#171C32']}
         style={styles.backgroundGradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 0.6 }}
@@ -1611,10 +1668,15 @@ const SwapScreen = ({ navigation, route }) => {
           <View style={styles.headerButtons}>
             <TouchableOpacity 
               style={styles.slippageButton}
-              onPress={() => setIsSlippageModalVisible(true)}
+              onPress={() => {
+                console.log('滑点按钮被点击');
+                console.log('当前滑点模态框状态:', isSlippageModalVisible);
+                setIsSlippageModalVisible(true);
+                console.log('设置后滑点模态框状态:', true);
+              }}
             >
               <Text style={styles.slippageText}>{slippage}%</Text>
-              <Ionicons name="settings-outline" size={16} color="#8E8E8E" style={styles.slippageIcon} />
+              <Ionicons name="options-outline" size={16} color="#8E8E8E" style={styles.slippageIcon} />
             </TouchableOpacity>
           </View>
         </View>
@@ -1632,15 +1694,11 @@ const SwapScreen = ({ navigation, route }) => {
             }
           >
             <View style={styles.swapCardContainer}>
-              <View style={[styles.swapCard, {
-                backgroundColor: backgroundGradient.includes('27, 76, 49') || backgroundGradient === '#1B4C31' ? 'rgba(27, 76, 49, 0.4)' : '#2C2941'
-              }]}>
+              <View style={styles.swapCard}>
                 {renderTokenSelector(fromToken, 'from', 'Payment Token')}
               </View>
 
-              <View style={[styles.swapCard, {
-                backgroundColor: backgroundGradient.includes('27, 76, 49') || backgroundGradient === '#1B4C31' ? 'rgba(27, 76, 49, 0.4)' : '#2C2941'
-              }]}>
+              <View style={styles.swapCard}>
                 {renderTokenSelector(toToken, 'to', 'Receive Token')}
               </View>
 
@@ -1648,7 +1706,7 @@ const SwapScreen = ({ navigation, route }) => {
                 style={[
                   styles.switchButton,
                   {
-                    borderColor: backgroundGradient.includes('27, 76, 49') || backgroundGradient === '#1B4C31' ? 'rgba(28, 33, 53, 0.3)' : 'rgba(26, 28, 51, 0.9)'
+                    borderColor: 'rgba(26, 28, 51, 0.9)'
                   }
                 ]}
                 onPress={handleSwapTokens}
@@ -1656,22 +1714,23 @@ const SwapScreen = ({ navigation, route }) => {
                 <Ionicons name="swap-vertical" size={20} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
-
-            <View style={[styles.swapCard, styles.detailsCard, {
-              backgroundColor: backgroundGradient.includes('27, 76, 49') || backgroundGradient === '#1B4C31' ? 'rgba(27, 76, 49, 0.4)' : '#2C2941'
-            }]}>
-              <QuoteDetails 
-                quote={quote}
-                fees={fees}
-                toToken={toToken}
-                fromToken={fromToken}
-                isQuoteLoading={isQuoteLoading}
-                calculateExchangeRate={calculateExchangeRate}
-                formatTokenAmount={formatTokenAmount}
-                formatPriceImpact={formatPriceImpact}
-                tokenPrices={tokenPrices}
-              />
-            </View>
+                
+            {/* 只在有报价数据或正在加载报价时显示详情容器 */}
+            {(quote || isQuoteLoading) && (
+              <View style={[styles.swapCard, styles.detailsCard]}>
+                <QuoteDetails 
+                  quote={quote}
+                  fees={fees}
+                  toToken={toToken}
+                  fromToken={fromToken}
+                  isQuoteLoading={isQuoteLoading}
+                  calculateExchangeRate={calculateExchangeRate}
+                  formatTokenAmount={formatTokenAmount}
+                  formatPriceImpact={formatPriceImpact}
+                  tokenPrices={tokenPrices}
+                />
+              </View>
+            )}
           </ScrollView>
           
           <View style={styles.bottomContainer}>
@@ -1762,7 +1821,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    marginBottom: 80, // 为底部按钮留出空间
+    marginBottom: 100, // 增加底部边距，从80改为100，为底部按钮留出更多空间
   },
   swapCardContainer: {
     position: 'relative',
@@ -1770,13 +1829,28 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
   },
   swapCard: {
-    backgroundColor: '#171C32',
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(40, 42, 70, 1)',
   },
   detailsCard: {
     marginHorizontal: 16,
+    marginBottom: 30, // 增加底部边距，让详情容器与底部有更多空间
+  },
+  tokenSelectorWrapper: {
+    width: '100%',
+    
   },
   tokenSelector: {
     flexDirection: 'row',
@@ -1784,6 +1858,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
+    backgroundColor: 'rgba(30, 32, 60, 0.8)',
   },
   tokenLogo: {
     width: 32,
@@ -1901,7 +1976,7 @@ const styles = StyleSheet.create({
   detailValue: {
     color: '#FFFFFF',
     fontSize: 15,
-    fontWeight: '500',
+    fontWeight: '400', // 从'500'改为'400'，去掉加粗效果
     textAlign: 'right',
     marginRight: 4,
     minHeight: 20,
@@ -2030,7 +2105,7 @@ const styles = StyleSheet.create({
   quoteValue: {
     color: '#FFFFFF',
     fontSize: 15,
-    fontWeight: '500',
+    fontWeight: '400', // 从'500'改为'400'，去掉加粗效果
     textAlign: 'right',
     marginRight: 4,
     minHeight: 20,

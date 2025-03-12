@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,24 +9,37 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
   Platform,
-  Animated
+  Animated,
+  Dimensions,
+  StatusBar
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const SlippageSettingModal = ({ visible, onClose, currentSlippage, onConfirm }) => {
   const [slippage, setSlippage] = useState(currentSlippage || '0.5');
   const [customSlippage, setCustomSlippage] = useState('');
   const [isCustom, setIsCustom] = useState(false);
   const [warning, setWarning] = useState('');
-  const [scaleAnim] = useState(new Animated.Value(0.9));
-  const [opacityAnim] = useState(new Animated.Value(0));
+  const [modalVisible, setModalVisible] = useState(visible);
+  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const [backdropVisible, setBackdropVisible] = useState(visible);
 
-  // 预设滑点选项
+  // Preset slippage options
   const presetOptions = ['0.1', '0.5', '1.0', '2.0'];
 
+  // Debug logs
+  console.log('SlippageSettingModal render:', { visible, currentSlippage });
+
   useEffect(() => {
+    console.log('SlippageSettingModal visible change:', visible);
+    
     if (visible) {
+      setModalVisible(true);
+      setBackdropVisible(true);
+      console.log('Showing slippage modal');
       setSlippage(currentSlippage || '0.5');
       setCustomSlippage('');
       setIsCustom(!presetOptions.includes(currentSlippage));
@@ -34,23 +47,22 @@ const SlippageSettingModal = ({ visible, onClose, currentSlippage, onConfirm }) 
         setCustomSlippage(currentSlippage);
       }
       
-      // 启动动画
-      Animated.parallel([
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacityAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      // Start animation
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
     } else {
-      // 重置动画值
-      scaleAnim.setValue(0.9);
-      opacityAnim.setValue(0);
+      console.log('Hiding slippage modal');
+      // Close animation
+      Animated.timing(slideAnim, {
+        toValue: SCREEN_HEIGHT,
+        duration: 300,
+        useNativeDriver: true,
+      }).start(() => {
+        setModalVisible(false);
+      });
     }
   }, [visible, currentSlippage]);
 
@@ -74,12 +86,12 @@ const SlippageSettingModal = ({ visible, onClose, currentSlippage, onConfirm }) 
     
     if (numValue < 0.05) {
       setWarning('Low slippage may cause transaction failure');
-      return true; // 允许但警告
+      return true; // Allow but warn
     }
     
     if (numValue > 5) {
-      setWarning('High slippage increases risk of price impact');
-      return true; // 允许但警告
+      setWarning('High slippage increases price impact risk');
+      return true; // Allow but warn
     }
     
     setWarning('');
@@ -93,19 +105,19 @@ const SlippageSettingModal = ({ visible, onClose, currentSlippage, onConfirm }) 
   };
 
   const handleCustomChange = (text) => {
-    // 移除非数字字符，保留一个小数点
+    // Remove non-numeric characters, keep one decimal point
     let cleanedValue = text.replace(/[^\d.]/g, '');
     const parts = cleanedValue.split('.');
     if (parts.length > 2) {
       cleanedValue = parts[0] + '.' + parts.slice(1).join('');
     }
     
-    // 如果以小数点开始，添加前导零
+    // If starts with decimal point, add leading zero
     if (cleanedValue.startsWith('.')) {
       cleanedValue = '0' + cleanedValue;
     }
     
-    // 限制小数位数为2位
+    // Limit decimal places to 2
     if (parts.length === 2 && parts[1].length > 2) {
       cleanedValue = parts[0] + '.' + parts[1].slice(0, 2);
     }
@@ -117,181 +129,209 @@ const SlippageSettingModal = ({ visible, onClose, currentSlippage, onConfirm }) 
   const handleConfirm = () => {
     if (validateSlippage()) {
       const finalValue = isCustom ? customSlippage : slippage;
+      console.log('Confirm slippage setting:', finalValue);
       onConfirm(finalValue);
-      onClose();
+      
+      setBackdropVisible(false);
+      
+      // Close with animation
+      Animated.timing(slideAnim, {
+        toValue: SCREEN_HEIGHT,
+        duration: 300,
+        useNativeDriver: true,
+      }).start(() => {
+        onClose();
+      });
     }
   };
 
-  const handleClose = () => {
-    // 执行关闭动画
-    Animated.parallel([
-      Animated.timing(scaleAnim, {
-        toValue: 0.9,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacityAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
+  const handleCloseModal = () => {
+    setBackdropVisible(false);
+    
+    // Close with animation
+    Animated.timing(slideAnim, {
+      toValue: SCREEN_HEIGHT,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
       onClose();
     });
   };
 
   return (
     <Modal
-      visible={visible}
-      transparent
+      visible={modalVisible}
+      transparent={true}
       animationType="none"
-      onRequestClose={handleClose}
+      onRequestClose={handleCloseModal}
+      statusBarTranslucent={true}
     >
-      <TouchableWithoutFeedback onPress={handleClose}>
-        <View style={styles.modalOverlay}>
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <Animated.View 
+      <StatusBar backgroundColor="transparent" translucent />
+      
+      <View style={styles.modalContainer}>
+        {backdropVisible && (
+          <TouchableWithoutFeedback onPress={handleCloseModal}>
+            <View style={styles.backdrop} />
+          </TouchableWithoutFeedback>
+        )}
+        
+        <Animated.View 
+          style={[
+            styles.modalContent,
+            {
+              transform: [{ translateY: slideAnim }]
+            }
+          ]}
+        >
+          <View style={styles.dragIndicator} />
+          
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Slippage Tolerance</Text>
+            <TouchableOpacity onPress={handleCloseModal} style={styles.closeButton}>
+              <Ionicons name="close" size={24} color="#8E8E8E" />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.infoContainer}>
+            <Ionicons name="information-circle-outline" size={18} color="#8E8E8E" />
+            <Text style={styles.infoText}>
+              Your transaction will revert if the price changes unfavorably by more than this percentage.
+            </Text>
+          </View>
+          
+          <View style={styles.optionsContainer}>
+            {presetOptions.map((option) => (
+              <TouchableOpacity
+                key={option}
+                style={[
+                  styles.optionButton,
+                  slippage === option && !isCustom && styles.selectedOption
+                ]}
+                onPress={() => handleSelectPreset(option)}
+              >
+                <Text 
+                  style={[
+                    styles.optionText,
+                    slippage === option && !isCustom && styles.selectedOptionText
+                  ]}
+                >
+                  {option}%
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          
+          <TouchableOpacity 
+            style={[
+              styles.customButton,
+              isCustom && styles.selectedCustomButton
+            ]}
+            onPress={() => setIsCustom(true)}
+          >
+            <Text 
               style={[
-                styles.modalContent,
-                {
-                  opacity: opacityAnim,
-                  transform: [{ scale: scaleAnim }]
-                }
+                styles.customButtonText,
+                isCustom && styles.selectedCustomText
               ]}
             >
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Slippage Tolerance</Text>
-                <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-                  <Ionicons name="close" size={24} color="#8E8E8E" />
-                </TouchableOpacity>
+              Custom
+            </Text>
+          </TouchableOpacity>
+          
+          {isCustom && (
+            <View style={styles.customInputWrapper}>
+              <View style={styles.customInputContainer}>
+                <TextInput
+                  style={styles.customInput}
+                  placeholder="Enter value"
+                  placeholderTextColor="#8E8E8E"
+                  keyboardType="decimal-pad"
+                  value={customSlippage}
+                  onChangeText={handleCustomChange}
+                  onFocus={() => setIsCustom(true)}
+                  maxLength={5}
+                  autoFocus={true}
+                />
+                <Text style={styles.percentSign}>%</Text>
               </View>
-              
-              <View style={styles.infoContainer}>
-                <Ionicons name="information-circle-outline" size={18} color="#8E8E8E" />
-                <Text style={styles.infoText}>
-                  Your transaction will revert if the price changes unfavorably by more than this percentage.
-                </Text>
-              </View>
-              
-              <View style={styles.optionsContainer}>
-                {presetOptions.map((option) => (
-                  <TouchableOpacity
-                    key={option}
-                    style={[
-                      styles.optionButton,
-                      slippage === option && !isCustom && styles.selectedOption
-                    ]}
-                    onPress={() => handleSelectPreset(option)}
-                  >
-                    <Text 
-                      style={[
-                        styles.optionText,
-                        slippage === option && !isCustom && styles.selectedOptionText
-                      ]}
-                    >
-                      {option}%
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-                
-                <TouchableOpacity 
-                  style={[
-                    styles.customButton,
-                    isCustom && styles.selectedCustomButton
-                  ]}
-                  onPress={() => setIsCustom(true)}
-                >
-                  <Text 
-                    style={[
-                      styles.customButtonText,
-                      isCustom && styles.selectedCustomText
-                    ]}
-                  >
-                    Custom
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              
-              {isCustom && (
-                <View style={styles.customInputWrapper}>
-                  <View style={styles.customInputContainer}>
-                    <TextInput
-                      style={styles.customInput}
-                      placeholder="Enter value"
-                      placeholderTextColor="#8E8E8E"
-                      keyboardType="decimal-pad"
-                      value={customSlippage}
-                      onChangeText={handleCustomChange}
-                      onFocus={() => setIsCustom(true)}
-                      maxLength={5}
-                      autoFocus={true}
-                    />
-                    <Text style={styles.percentSign}>%</Text>
-                  </View>
-                </View>
-              )}
-              
-              {warning ? (
-                <View style={styles.warningContainer}>
-                  <Ionicons 
-                    name="warning-outline" 
-                    size={16} 
-                    color={warning.includes('failure') ? "#FF9500" : "#FF3B30"} 
-                  />
-                  <Text style={[
-                    styles.warningText,
-                    { color: warning.includes('failure') ? "#FF9500" : "#FF3B30" }
-                  ]}>
-                    {warning}
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.warningPlaceholder} />
-              )}
-              
-              <TouchableOpacity
-                style={styles.confirmButton}
-                onPress={handleConfirm}
-              >
-                <LinearGradient
-                  colors={['#1FC595', '#17A982']}
-                  style={styles.confirmButtonGradient}
-                >
-                  <Text style={styles.confirmButtonText}>Confirm</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </Animated.View>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
+            </View>
+          )}
+          
+          {warning ? (
+            <View style={styles.warningContainer}>
+              <Ionicons 
+                name="warning-outline" 
+                size={16} 
+                color={warning.includes('failure') ? "#FF9500" : "#FF3B30"} 
+              />
+              <Text style={[
+                styles.warningText,
+                { color: warning.includes('failure') ? "#FF9500" : "#FF3B30" }
+              ]}>
+                {warning}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.warningPlaceholder} />
+          )}
+          
+          <TouchableOpacity
+            style={styles.confirmButton}
+            onPress={handleConfirm}
+          >
+            <LinearGradient
+              colors={['#1FC595', '#17A982']}
+              style={styles.confirmButtonGradient}
+            >
+              <Text style={styles.confirmButtonText}>Confirm</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  modalOverlay: {
+  modalContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  backdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalContent: {
-    width: '85%',
-    maxWidth: 360,
     backgroundColor: '#1A1E2E',
-    borderRadius: 20,
-    padding: 24,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    height: SCREEN_HEIGHT * 0.65, // 增加高度到屏幕的65%
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 15,
+    shadowOffset: { width: 0, height: -5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
     elevation: 10,
+  },
+  dragIndicator: {
+    width: 40,
+    height: 5,
+    backgroundColor: '#3A3F55',
+    borderRadius: 3,
+    alignSelf: 'center',
+    marginBottom: 16,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   modalTitle: {
     fontSize: 18,
@@ -322,7 +362,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   optionButton: {
-    width: '18%',
+    width: '23%',
     backgroundColor: '#242838',
     borderRadius: 12,
     paddingVertical: 12,
@@ -343,12 +383,13 @@ const styles = StyleSheet.create({
     color: '#1FC595',
   },
   customButton: {
-    width: '22%',
+    width: '100%',
     backgroundColor: '#242838',
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 16,
   },
   selectedCustomButton: {
     backgroundColor: 'rgba(31, 197, 149, 0.2)',
@@ -409,6 +450,8 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 16,
     overflow: 'hidden',
+    marginTop: 'auto',
+    marginBottom: 16,
   },
   confirmButtonGradient: {
     paddingVertical: 14,
