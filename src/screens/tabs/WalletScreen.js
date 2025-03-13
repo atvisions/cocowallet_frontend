@@ -65,14 +65,23 @@ const WalletScreen = ({ navigation }) => {
 
   useEffect(() => {
     if (!isLoading && wallets.length === 0) {
-      setTimeout(() => {
-        navigation.dispatch(
-          CommonActions.reset({
-            index: 0,
-            routes: [{ name: 'Onboarding' }]
-          })
-        );
-      }, 100);
+      // 增加延迟和二次确认
+      const timer = setTimeout(async () => {
+        const deviceId = await DeviceManager.getDeviceId();
+        const currentWallets = await api.getWallets(deviceId);
+        
+        if (!currentWallets || currentWallets.length === 0) {
+          await DeviceManager.setWalletCreated(false);
+          navigation.dispatch(
+            CommonActions.reset({
+              index: 0,
+              routes: [{ name: 'Onboarding' }]
+            })
+          );
+        }
+      }, 300);
+      
+      return () => clearTimeout(timer);
     }
   }, [wallets.length, isLoading]);
 

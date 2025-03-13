@@ -13,7 +13,7 @@ export const processWalletData = (wallet) => {
   
   // 检查avatar是否为相对路径，如果是则添加baseURL前缀
   if (processedWallet.avatar && !processedWallet.avatar.startsWith('http')) {
-    processedWallet.avatar = `http://192.168.3.16:8000${processedWallet.avatar}`;
+    processedWallet.avatar = `https://api.cocowallet.io${processedWallet.avatar}`;
   }
   
   return processedWallet;

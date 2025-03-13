@@ -23,80 +23,70 @@ export const WalletProvider = ({ children }) => {
       console.log('【钱包上下文】当前设备 ID:', deviceId);
       
       const response = await api.getWallets(deviceId);
-      console.log('【钱包上下文】获取到的钱包列表:', response.map(w => ({
-        id: w.id,
-        chain: w.chain,
-        device_id: w.device_id,
-        address: w.address
-      })));
+      console.log('【钱包上下文】获取到的钱包列表:', response);
       
-      setWallets(response);
+      // 确保response是数组且有效
+      const validWallets = Array.isArray(response) ? response : [];
+      setWallets(validWallets);
+
+      // 如果没有钱包，清空选中的钱包
+      if (validWallets.length === 0) {
+        await AsyncStorage.removeItem('selectedWalletId');
+        setSelectedWallet(null);
+        setTokens([]);
+        return;
+      }
 
       // 从AsyncStorage中获取上次选择的钱包ID
       const savedWalletId = await AsyncStorage.getItem('selectedWalletId');
       console.log('【钱包上下文】加载保存的钱包ID:', savedWalletId);
 
-      if (savedWalletId && response.length > 0) {
-        // 将savedWalletId转换为数字类型再进行比较
+      if (savedWalletId) {
         const savedWalletIdNumber = parseInt(savedWalletId, 10);
-        console.log('【钱包上下文】解析保存的钱包ID:', savedWalletIdNumber);
-
-        // 在钱包列表中查找保存的钱包
-        const savedWallet = response.find(wallet => wallet.id === savedWalletIdNumber);
-        console.log('【钱包上下文】找到保存的钱包:', savedWallet ? {
-          id: savedWallet.id,
-          chain: savedWallet.chain,
-          device_id: savedWallet.device_id,
-          address: savedWallet.address
-        } : '未找到');
-
+        const savedWallet = validWallets.find(wallet => wallet.id === savedWalletIdNumber);
+        
         if (savedWallet) {
-          console.log('【钱包上下文】设置之前选择的钱包:', savedWallet.id);
           setSelectedWallet(savedWallet);
         } else {
-          // 如果找不到保存的钱包，则选择第一个钱包
-          console.log('【钱包上下文】未找到保存的钱包，选择第一个钱包:', {
-            id: response[0].id,
-            chain: response[0].chain,
-            device_id: response[0].device_id,
-            address: response[0].address
-          });
-          setSelectedWallet(response[0]);
-          // 更新存储的钱包ID
-          await AsyncStorage.setItem('selectedWalletId', String(response[0].id));
+          setSelectedWallet(validWallets[0]);
+          await AsyncStorage.setItem('selectedWalletId', String(validWallets[0].id));
         }
-      } else if (response.length > 0) {
-        console.log('【钱包上下文】没有保存的钱包ID，选择第一个钱包:', {
-          id: response[0].id,
-          chain: response[0].chain,
-          device_id: response[0].device_id,
-          address: response[0].address
-        });
-        setSelectedWallet(response[0]);
-        // 更新存储的钱包ID
-        await AsyncStorage.setItem('selectedWalletId', String(response[0].id));
+      } else if (validWallets.length > 0) {
+        setSelectedWallet(validWallets[0]);
+        await AsyncStorage.setItem('selectedWalletId', String(validWallets[0].id));
       }
     } catch (error) {
       console.error('【钱包上下文】加载钱包失败:', error);
+      setWallets([]);
+      setSelectedWallet(null);
+      setTokens([]);
     }
   };
 
   const updateSelectedWallet = useCallback(async (wallet) => {
     try {
-      // 先保存钱包ID到AsyncStorage
-      if (wallet?.id) {
-        await AsyncStorage.setItem('selectedWalletId', String(wallet.id));
-        console.log('保存选中的钱包ID:', wallet.id);
+      // 如果是清空钱包，直接执行
+      if (!wallet) {
+        await AsyncStorage.removeItem('selectedWalletId');
+        setSelectedWallet(null);
+        setTokens([]);
+        return;
       }
+
+      // 保存钱包ID到AsyncStorage
+      await AsyncStorage.setItem('selectedWalletId', String(wallet.id));
+      console.log('保存选中的钱包ID:', wallet.id);
       
-      // 先清空当前数据
-      setTokens([]);
-      // 延迟设置新钱包，确保清空操作完成
-      setTimeout(() => {
-        setSelectedWallet(wallet);
-      }, 0);
+      // 使用Promise确保状态更新的顺序
+      await new Promise(resolve => {
+        setTokens([]);
+        setTimeout(() => {
+          setSelectedWallet(wallet);
+          resolve();
+        }, 50);
+      });
     } catch (error) {
-      console.error('保存选中钱包ID失败:', error);
+      console.error('更新选中钱包失败:', error);
     }
   }, []);
 

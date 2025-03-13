@@ -52,23 +52,28 @@ const ImportWallet = ({ navigation, route }) => {
             if (response.wallet) {
               const processedWallet = processWalletData(response.wallet);
               await updateSelectedWallet(processedWallet);
-            }
-
-            // 导入成功后重置导航栈并导航到主页面
-            navigation.reset({
-              index: 0,
-              routes: [
-                {
-                  name: 'MainStack',
-                  params: {
-                    screen: 'Tabs',
-                    params: {
-                      screen: 'Wallet'
+              
+              // 等待状态更新完成
+              await new Promise(resolve => setTimeout(resolve, 100));
+              
+              // 导入成功后重置导航栈并导航到主页面
+              navigation.dispatch(
+                CommonActions.reset({
+                  index: 0,
+                  routes: [
+                    {
+                      name: 'MainStack',
+                      params: {
+                        screen: 'Tabs',
+                        params: {
+                          screen: 'Wallet'
+                        }
+                      }
                     }
-                  }
-                }
-              ]
-            });
+                  ]
+                })
+              );
+            }
             return true;
           } else {
             // 导入失败，返回到导入页面

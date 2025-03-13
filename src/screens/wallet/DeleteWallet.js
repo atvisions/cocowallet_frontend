@@ -45,14 +45,17 @@ export default function DeleteWallet({ route, navigation }) {
                 setWallets([]),
                 updateSelectedWallet(null)
               ]);
-              console.log('状态已更新，跳转到引导页');
               
-              navigation.dispatch(
-                CommonActions.reset({
-                  index: 0,
-                  routes: [{ name: 'Onboarding' }]
-                })
-              );
+              await DeviceManager.setWalletCreated(false);
+              
+              setTimeout(() => {
+                navigation.dispatch(
+                  CommonActions.reset({
+                    index: 0,
+                    routes: [{ name: 'Onboarding' }]
+                  })
+                );
+              }, 100);
             } else {
               console.log('还有其他钱包，准备更新状态');
               if (selectedWallet?.id === wallet.id) {
@@ -63,29 +66,25 @@ export default function DeleteWallet({ route, navigation }) {
                 setWallets(updatedWallets),
                 selectedWallet?.id === wallet.id ? updateSelectedWallet(updatedWallets[0]) : Promise.resolve()
               ]);
-              console.log('钱包状态已更新，准备跳转到钱包页面');
               
-              navigation.dispatch(
-                CommonActions.reset({
-                  index: 0,
-                  routes: [
-                    {
-                      name: 'Tabs',
-                      state: {
-                        routes: [
-                          { 
-                            name: 'Wallet',
-                            params: { 
-                              refresh: Date.now(),
-                              skipInitialLoad: true
-                            }
+              setTimeout(() => {
+                navigation.dispatch(
+                  CommonActions.reset({
+                    index: 0,
+                    routes: [
+                      {
+                        name: 'MainStack',
+                        params: {
+                          screen: 'Tabs',
+                          params: {
+                            screen: 'Wallet'
                           }
-                        ]
+                        }
                       }
-                    }
-                  ],
-                })
-              );
+                    ]
+                  })
+                );
+              }, 100);
             }
             return true;
           } else {
