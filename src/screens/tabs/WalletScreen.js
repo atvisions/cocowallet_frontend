@@ -347,7 +347,7 @@ const WalletScreen = ({ navigation }) => {
 
     return (
       <TouchableOpacity 
-        style={styles.tokenItem}
+        style={styles.tokenItemCard}
         onPress={async () => {
           const deviceId = await DeviceManager.getDeviceId();
           navigation.navigate('TokenDetail', {
@@ -470,7 +470,7 @@ const WalletScreen = ({ navigation }) => {
 
   const renderTokenSkeleton = () => {
     return Array(3).fill(0).map((_, index) => (
-      <View key={`skeleton-${index}`} style={styles.tokenItem}>
+      <View key={`skeleton-${index}`} style={styles.tokenItemCard}>
         <View style={[styles.tokenLogo, styles.tokenLogoSkeleton]}>
           <LinearGradient
             colors={['rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
@@ -523,19 +523,18 @@ const WalletScreen = ({ navigation }) => {
 
   const renderAssetsSection = () => (
     <View style={styles.assetsSection}>
-      <View style={styles.tokenListContainer}>
-        {isLoading ? (
-          renderTokenSkeleton()
-        ) : (
-          <FlatList
-            data={tokens}
-            renderItem={renderTokenItem}
-            keyExtractor={item => `${item.chain}_${item.address}`}
-            scrollEnabled={false}
-            contentContainerStyle={styles.tokenList}
-          />
-        )}
-      </View>
+      {isLoading ? (
+        renderTokenSkeleton()
+      ) : (
+        <FlatList
+          data={tokens}
+          renderItem={renderTokenItem}
+          keyExtractor={item => `${item.chain}_${item.address}`}
+          scrollEnabled={false}
+          contentContainerStyle={styles.tokenList}
+          ItemSeparatorComponent={() => <View style={styles.tokenSeparator} />}
+        />
+      )}
       <TouchableOpacity 
         style={styles.tokenManageButton}
         onPress={handleTokenManagementPress}
@@ -948,19 +947,17 @@ const styles = StyleSheet.create({
   assetsSection: {
     flex: 1,
   },
-  tokenListContainer: {
-    borderRadius: 24,
-    padding: 8,
-    marginHorizontal: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-  },
-  tokenItem: {
+  tokenItemCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 13,
     paddingHorizontal: 12,
-    backgroundColor: 'transparent',
-    marginBottom: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    borderRadius: 12,
+    marginBottom: 1,
+  },
+  tokenSeparator: {
+    height: 6,
   },
   tokenLogo: {
     width: 40,
@@ -1001,7 +998,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   tokenList: {
-    paddingBottom: 0,
+    paddingBottom: 10,
+    paddingTop: 10,
+    paddingHorizontal: 6,
   },
   errorContainer: {
     backgroundColor: 'rgba(255, 75, 85, 0.1)',

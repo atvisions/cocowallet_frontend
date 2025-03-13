@@ -3,7 +3,7 @@ import { DeviceManager } from '../utils/device';
 import { logger } from '../utils/logger';
 
 // 确保 BASE_URL 是正确的
-const BASE_URL = 'http://192.168.3.16:8000/api/v1';
+const BASE_URL = 'https://api.cocowallet.io/api/v1';
 
 // 创建 axios 实例
 const instance = axios.create({

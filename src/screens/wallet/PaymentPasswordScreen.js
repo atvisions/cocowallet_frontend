@@ -198,203 +198,66 @@ export default function PaymentPasswordScreen({ route, navigation }) {
             slippage: swapData.slippage
           };
 
-          console.log('Submit transaction parameters:', {
+          console.log('准备提交交易，参数:', {
             ...transactionParams,
-            payment_password: '******'
+            payment_password: '******',
+            quote_id: '(length:' + swapData.quote_id.length + ')'
           });
 
-          // 如果有回调函数，先执行回调
-          if (route.params?.onSwapSuccess) {
-            await route.params.onSwapSuccess(transactionParams);
-          }
-
-          // 执行交易并获取交易签名
-          setProcessingStatus('Submitting transaction...');
-          
-          // 定义所有可能的签名字段
-          const possibleSignatureFields = [
-            'signature', 'txid', 'tx_hash', 'tx', 'hash', 
-            'transaction_id', 'id', 'transaction_hash', 'txHash',
-            'transactionId', 'transactionHash', 'tx_id', 'txId'
-          ];
-          
-          // 尝试获取签名的函数
-          const extractSignature = (response) => {
-            let extractedSignature = null;
-            
-            // 检查 response.data.signature
-            if (response.data && response.data.signature) {
-              if (typeof response.data.signature === 'object' && response.data.signature.result) {
-                extractedSignature = response.data.signature.result;
-              } else if (typeof response.data.signature === 'string') {
-                extractedSignature = response.data.signature;
-              } else {
-                console.log('Unknown signature format, trying to use directly:', response.data.signature);
-                extractedSignature = String(response.data.signature);
-              }
-            }
-            
-            // 如果没有找到签名，检查其他可能的字段
-            if (!extractedSignature) {
-              // 检查 response.data 中的字段
-              for (const field of possibleSignatureFields) {
-                if (response.data && response.data[field]) {
-                  extractedSignature = response.data[field];
-                  console.log(`Using ${field} as signature:`, extractedSignature);
-                  break;
-                }
-              }
-              
-              // 如果在 response.data 中找不到，检查 response 本身
-              if (!extractedSignature) {
-                for (const field of possibleSignatureFields) {
-                  if (response[field]) {
-                    extractedSignature = response[field];
-                    console.log(`Using response root level ${field} as signature:`, extractedSignature);
-                    break;
-                  }
-                }
-              }
-            }
-            
-            return extractedSignature;
-          };
-          
+          // 执行交易
           try {
+            console.log('开始执行交易...');
+            setProcessingStatus('正在提交交易...');
+            
             // 执行交易
             const response = await api.executeSolanaSwap(numericWalletId, transactionParams);
-            console.log('Transaction response:', JSON.stringify(response));
+            console.log('交易响应:', JSON.stringify(response, null, 2));
             
             if (response.status === 'success') {
               // 尝试提取签名
-              const signature = extractSignature(response);
+              let signature = null;
+              
+              // 检查 response.data.signature
+              if (response.data && response.data.signature) {
+                console.log('从 response.data.signature 中提取签名');
+                signature = typeof response.data.signature === 'object' ? 
+                  response.data.signature.result : response.data.signature;
+                console.log('提取到的签名:', signature);
+              }
               
               if (signature) {
-                // 成功获取到签名
-                console.log('Transaction submitted successfully, signature obtained:', signature);
+                console.log('交易成功，准备返回 Swap 页面');
                 
-                // 确保签名是字符串类型
-                const finalSignature = String(signature);
+                // 立即返回上一页
+                navigation.goBack();
                 
-                // 创建交易信息对象
-                const transactionInfo = {
-                  signature: finalSignature,
-                  fromToken: swapData.fromSymbol,
-                  toToken: swapData.toSymbol,
-                  amount: swapData.amount
-                };
-                
-                console.log('Transaction info to pass to Swap page:', transactionInfo);
-                
-                // 导航回 Swap 页面并传递交易信息
-                navigation.navigate('MainStack', {
-                  screen: 'Tabs',
-                  params: {
-                    screen: 'Swap',
-                    params: {
-                      transactionInfo: transactionInfo,
-                      checkTransactionStatus: true
-                    }
-                  }
-                });
-                
-                // 添加延迟检查，确保导航成功
+                // 使用延时确保返回动画完成后再触发回调
                 setTimeout(() => {
-                  // 如果导航失败，尝试使用另一种方式
-                  if (navigation.canNavigate && navigation.canNavigate('Swap')) {
-                    console.log('Using direct navigation to Swap page');
-                    navigation.navigate('Swap', {
-                      transactionInfo: transactionInfo,
-                      checkTransactionStatus: true
+                  setIsProcessing(false);  // 关闭加载状态
+                  setProcessingStatus('');
+                  
+                  // 如果有 onSuccess 回调，传递交易信息
+                  if (route.params?.onSuccess) {
+                    route.params.onSuccess({
+                      signature,
+                      fromToken: swapData.fromSymbol,
+                      toToken: swapData.toSymbol,
+                      amount: swapData.amount,
+                      status: 'success'
                     });
                   }
-                }, 500);
+                }, 300);
               } else {
-                // 交易已提交但未获取到签名
-                console.error('Warning: Transaction response successful but no signature returned');
-                
-                // 尝试从响应中获取更多信息
-                let possibleSignature = null;
-                
-                // 深度搜索响应对象
-                const searchForSignature = (obj, path = '') => {
-                  if (!obj || typeof obj !== 'object') return;
-                  
-                  for (const key in obj) {
-                    const currentPath = path ? `${path}.${key}` : key;
-                    const value = obj[key];
-                    
-                    // 检查是否是可能的签名字符串
-                    if (typeof value === 'string' && value.length > 40 && /^[A-Za-z0-9]+$/.test(value)) {
-                      console.log(`Found possible signature at path ${currentPath}:`, value);
-                      possibleSignature = value;
-                      return;
-                    }
-                    
-                    // 递归搜索嵌套对象
-                    if (value && typeof value === 'object') {
-                      searchForSignature(value, currentPath);
-                    }
-                  }
-                };
-                
-                searchForSignature(response);
-                
-                if (possibleSignature) {
-                  console.log('Found possible signature:', possibleSignature);
-                  
-                  // 创建交易信息对象
-                  const transactionInfo = {
-                    signature: possibleSignature,
-                    fromToken: swapData.fromSymbol,
-                    toToken: swapData.toSymbol,
-                    amount: swapData.amount
-                  };
-                  
-                  // 导航回 Swap 页面并传递交易信息
-                  navigation.navigate('MainStack', {
-                    screen: 'Tabs',
-                    params: {
-                      screen: 'Swap',
-                      params: {
-                        transactionInfo: transactionInfo,
-                        checkTransactionStatus: true
-                      }
-                    }
-                  });
-                } else {
-                  // 返回 Swap 页面并显示消息
-                  navigation.navigate('MainStack', {
-                    screen: 'Tabs',
-                    params: {
-                      screen: 'Swap',
-                      params: {
-                        showMessage: true,
-                        messageType: 'info',
-                        messageText: 'Transaction submitted, please check transaction history later'
-                      }
-                    }
-                  });
-                }
+                console.error('警告: 交易响应成功但未获取到签名');
+                handleTransactionError('交易已提交，请稍后查看交易记录');
               }
             } else {
-              throw new Error(response?.message || 'Transaction submission failed');
+              console.error('交易执行失败:', response);
+              handleTransactionError(response?.message || '交易执行失败');
             }
           } catch (error) {
-            console.error('Error executing transaction:', error);
-            
-            // 返回 Swap 页面并显示错误消息
-            navigation.navigate('MainStack', {
-              screen: 'Tabs',
-              params: {
-                screen: 'Swap',
-                params: {
-                  showMessage: true,
-                  messageType: 'error',
-                  messageText: error.message || 'Transaction execution failed'
-                }
-              }
-            });
+            console.error('交易执行出错:', error);
+            handleTransactionError(error?.message || '交易执行出错，请重试');
           }
         } catch (error) {
           console.error('Error processing transaction parameters:', error);
@@ -428,6 +291,16 @@ export default function PaymentPasswordScreen({ route, navigation }) {
       setIsProcessing(false);
       setProcessingStatus('');
     }
+  };
+
+  // 添加统一的错误处理函数
+  const handleTransactionError = (errorMessage) => {
+    setIsProcessing(false);
+    setProcessingStatus('');
+    navigation.goBack();
+    setTimeout(() => {
+      Alert.alert('提示', errorMessage);
+    }, 300);
   };
 
   const renderNumberPad = () => {

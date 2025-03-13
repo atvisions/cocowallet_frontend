@@ -84,7 +84,7 @@ const TokenSelectScreen = ({ navigation, route }) => {
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
-            选择{type === 'from' ? '支付' : '接收'}代币
+            Select {type === 'from' ? 'Payment' : 'Receiving'} Token
           </Text>
           <View style={styles.headerRight} />
         </View>
@@ -94,7 +94,7 @@ const TokenSelectScreen = ({ navigation, route }) => {
             <Ionicons name="search" size={20} color="#8E8E8E" />
             <TextInput
               style={styles.searchInput}
-              placeholder="搜索代币名称或地址"
+              placeholder="Search token name or address"
               placeholderTextColor="#8E8E8E"
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -118,7 +118,7 @@ const TokenSelectScreen = ({ navigation, route }) => {
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={() => (
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>未找到相关代币</Text>
+              <Text style={styles.emptyText}>No matching tokens found</Text>
             </View>
           )}
         />

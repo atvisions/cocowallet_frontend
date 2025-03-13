@@ -302,7 +302,7 @@ export default function HistoryScreen({ navigation, route }) {
     return (
       <View style={styles.emptyContainer}>
         <Ionicons name="document-text-outline" size={60} color="#3A3F64" />
-        <Text style={styles.emptyText}>暂无交易记录</Text>
+        <Text style={styles.emptyText}>No transaction records</Text>
       </View>
     );
   };
